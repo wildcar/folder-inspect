@@ -7,7 +7,7 @@ in `AGENTS/` docs; repeatable procedures belong in skills under `.claude/skills/
 
 ## Project
 
-folder-inspect — Go tool that inspects a *project document repository* (a folder tree of implementation-project documents, local or on a mounted share) for oversized files graded by kind, archives, junk, duplicates and near-duplicates; shows findings in a local web UI with CSV/XLSX/HTML export; cleans up via quarantine (restorable) and hard-link replacement of duplicates.
+folder-inspect — Go tool that inspects a *project document repository* (a folder tree of implementation-project documents, local or on a mounted share) for oversized files graded by kind, archives, junk, duplicates and near-duplicates; shows findings in a local web UI with CSV/XLSX/HTML export; cleans up via restorable quarantine, leaving a pointer stub where a duplicate was removed.
 
 Not related to git in any way. Stack decision: `docs/adr/0001-stack-and-interface.md`. Contract: `AGENTS/SPEC.md`.
 
@@ -118,6 +118,7 @@ Hard constraints and invariants this project must not violate. Keep each rule on
 - Read-only by default: no file-system change happens outside an explicit `apply` of a reviewed plan.
 - The tool never deletes user files directly; removal means quarantine with a restore manifest.
 - Never traverse symlinks/junctions out of a scan root; never modify system folders or the quarantine folder during a scan.
+- The product never creates hard links or symlinks; a removed duplicate leaves a human-readable pointer stub instead.
 - Scan results live in `report.json`; every presentation (console, UI, exports) is derived from it, not from a second scan.
 - Web UI assets are plain HTML/JS embedded with `embed`; no Node/npm build step in the toolchain.
 - Third-party Go modules only where the standard library clearly falls short (currently: YAML config, XLSX export).
@@ -146,7 +147,7 @@ internal/scan/        walker + file index
 internal/detect/      detectors: size rules, archives, junk, duplicates, names, empty
 internal/report/      JSON model, console summary, CSV/XLSX/HTML exports
 internal/ui/          embedded web UI + localhost handlers
-internal/action/      plan, apply, quarantine, restore, hardlink
+internal/action/      plan, apply, quarantine, restore, pointer stubs
 internal/config/      YAML config, defaults, flag merge
 internal/i18n/        RU / EN messages
 testdata/             dirty-repository fixture generator

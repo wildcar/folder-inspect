@@ -3,9 +3,9 @@
 Source of truth for *what the product does* and *how it is built*. Update before code when
 the contract changes.
 
-Status: **contract v0.1** (2026-09-15) — derived from the owner's answers in
-`docs/discovery-questionnaire.md`. Items marked ❓ are still open with a proposed default;
-everything else is agreed. Implementation status: ✅ done / ⏳ planned.
+Status: **contract v0.2** (2026-09-15) — all questionnaire items answered
+(`docs/discovery-questionnaire.md`). Items marked ❓ are minor details left to refine during
+implementation. Implementation status: ✅ done / ⏳ planned.
 
 ## Purpose
 
@@ -13,8 +13,8 @@ Inspect a **project document repository** — a folder tree (local disk or mount
 share) that stores documents of implementation projects: office files, PDFs, images, meeting
 recordings, occasionally code. Report what should not be there: files that are too large for
 their kind, archives, junk files, duplicates and near-duplicates. Then help clean the
-repository safely: quarantine with restore, replace duplicates with links, export the findings
-for colleagues.
+repository safely: quarantine with restore, replace removed duplicates with a small pointer
+file that names the original, export the findings for colleagues.
 
 Explicitly **out of scope**: git repositories and anything git-specific. The product must not
 depend on or assume git.
@@ -49,7 +49,7 @@ folder-inspect scan <root...>
  duplicates   empty dirs /              plan.json (dry-run)  ──► apply
  (hash)       zero-size files                                     │
  near-duplicates (names)                             quarantine + restore manifest
-                                                     hard-link replacement
+                                                     duplicate → quarantine + pointer stub
 ```
 
 ## Functional requirements
@@ -72,8 +72,8 @@ folder-inspect scan <root...>
   | any file ("huge": video recordings, distributives) | `*` | 100 MB |
   | text documents | doc docx rtf odt | 15 MB |
   | presentations | ppt pptx odp | 15 MB |
-  | spreadsheets ❓ | xls xlsx ods | 15 MB |
-  | PDF ❓ | pdf | 30 MB |
+  | spreadsheets | xls xlsx ods | 15 MB |
+  | PDF | pdf | 30 MB |
   | images | jpg jpeg png gif bmp tif tiff heic webp | 5 MB |
 
 - FR-11 ⏳ A file is reported once, under the most specific matching rule, with the rule name.
@@ -85,8 +85,8 @@ folder-inspect scan <root...>
   distributive, an attempt to keep old versions, or a bundle prepared for sending.
 - FR-14 ⏳ Office and similar container formats (docx xlsx pptx odt jar apk) are **not**
   archives.
-- FR-15 ❓ Installers/distributives (exe msi msix appx deb rpm dmg pkg) — proposed as a
-  separate "distributive" category reported alongside archives. Default: on.
+- FR-15 ⏳ Installers/distributives (exe msi msix appx deb rpm dmg pkg) are reported as a
+  separate "distributive" category next to archives. On by default.
 
 ### Detector: junk
 - FR-16 ⏳ Built-in patterns: `*.bak *.tmp *.temp *.old *.orig *.swp`, Office lock/temp files
@@ -103,9 +103,9 @@ folder-inspect scan <root...>
   `Копия <name>`, `<name> - копия`, `<name> - копия (N)`, `Copy of <name>`, `<name> (N)`,
   `<name> - Copy`, `<name>_v2 / _v3 / _final / _старый / _old / _new / _новый`,
   `<name> (Восстановлен)` / `(Recovered)`. ❓ list to be refined with the owner.
-- FR-21 ⏳ For every duplicate group show the wasted size and a suggested canonical file
-  (❓ default: the one with the oldest modification time; alternatives: shortest path,
-  explicit pick in the UI).
+- FR-21 ⏳ For every duplicate group show the wasted size. The canonical file (the one that
+  stays) is **picked by the user in the web UI**; the UI pre-selects the oldest by
+  modification time as a suggestion. Nothing happens to a group without a pick.
 
 ### Reporting
 - FR-30 ⏳ `report.json` — native result: metadata (roots, time, config, tool version) and all
@@ -123,12 +123,24 @@ folder-inspect scan <root...>
 - FR-41 ⏳ `plan` produces `plan.json` (from UI selection or from rules such as
   "all junk", "all archives"); `apply --dry-run` prints what would happen; `apply` executes.
 - FR-42 ⏳ Quarantine: move a file to `<quarantine>/<YYYY-MM-DD_HHMM>/<relative path>` with a
-  manifest; `restore` puts files back. Quarantine folder defaults to `<root>/.folder-inspect/quarantine`
-  ❓ (alternative: a folder outside the root, set in config).
-- FR-43 ⏳ Replace duplicates with **hard links** to the canonical file (same volume required).
-  If the volume or file system does not support hard links, the group is reported as
-  not-linkable and left untouched. ❓ Owner to confirm hard links are acceptable: editing one
-  linked copy changes all copies.
+  manifest; `restore` puts files back. Quarantine folder: `<root>/.folder-inspect/quarantine`
+  (overridable in config).
+- FR-43 ⏳ Removing a duplicate = move it to quarantine **and leave a pointer stub** in its
+  place: a small text file `<original name>.duplicate.txt` next to where the file was, saying
+  that the duplicate was removed and where the kept original is, as a path **relative to the
+  stub's folder**. Contents (RU/EN by locale): tool name, date, relative path to the
+  original, quarantine location, SHA-256. Example:
+
+  ```
+  Дубликат удалён инструментом folder-inspect, 2026-09-15 14:02.
+  Оригинал: ..\..\Проект X\Договоры\Договор.docx
+  Копия перемещена в карантин: .folder-inspect\quarantine\2026-09-15_1402\Проект Y\Договор.docx
+  SHA-256: 3f2a…
+  ```
+
+  `restore` removes the stub when it brings the file back. No hard links or symlinks are
+  created (owner decision 2026-09-15). ❓ Optionally also a Windows `.lnk` shortcut to the
+  original — later, if colleagues ask for "double-click opens the original".
 - FR-44 ⏳ The tool never deletes user files directly. Emptying the quarantine is an explicit
   separate command with confirmation.
 
@@ -149,7 +161,7 @@ internal/scan/          walker, file index
 internal/detect/        one package per detector (size, archive, junk, dup, names, empty)
 internal/report/        JSON model, console summary, exports (csv, xlsx, html)
 internal/ui/            embedded web UI (static HTML/JS) + local HTTP handlers
-internal/action/        plan, apply, quarantine, restore, hardlink
+internal/action/        plan, apply, quarantine, restore, pointer stubs
 internal/config/        YAML config, defaults, flag merge
 internal/i18n/          RU / EN message catalogs
 testdata/               fixture generator for a dirty repository
@@ -162,10 +174,9 @@ docs/                   ADRs, questionnaire, user docs
 
 ## Current state
 
-- ✅ Discovery done; stack decided (ADR-0001); this contract v0.1.
+- ✅ Discovery fully answered; stack decided (ADR-0001); this contract v0.2. License: MIT.
 - ⏳ Go toolchain not yet installed on the dev host; project scaffold pending.
-- ❓ Open: web UI form confirmation, xls/pdf thresholds, installers category, hard-link
-  acceptance, canonical-file rule, quarantine location, near-duplicate name patterns.
+- ❓ Minor: more near-duplicate name patterns from practice; optional `.lnk` next to the stub.
 
 See `AGENTS/STATE.md` for the live Now / Next snapshot.
 

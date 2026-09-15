@@ -1,9 +1,8 @@
 # ADR-0001: Stack and interface — Go CLI core with a local web UI
 
-**Status:** Accepted (stack, platforms, CLI core, JSON as the result format). The *form* of the
-user interface (embedded local web UI) is the recommended reading of the owner's "нормальный
-интерфейс и возможность выгрузки" and awaits explicit confirmation; if rejected, this part is
-superseded by a follow-up ADR.
+**Status:** Accepted — including the embedded local web UI, confirmed by the owner on
+2026-09-15. Same day the owner replaced "hard links for duplicates" with pointer stub files
+(see Decision 5).
 **Date:** 2026-09-15
 **Deciders:** owner (wildcar) via `docs/discovery-questionnaire.md`; agent proposal
 **Scope:** whole project — language, build, distribution, interface layering
@@ -23,7 +22,8 @@ Requirements that drive the choice:
 - Single tool a colleague can run without installing a runtime.
 - Fast directory walk and content hashing for duplicate detection.
 - A "proper" interface to browse findings and pick actions, plus export of results.
-- Clean-up actions must be safe: quarantine with restore, replace duplicates with links.
+- Clean-up actions must be safe: quarantine with restore; a removed duplicate must leave a
+  visible trace pointing to the kept original.
 
 ## Decision
 
@@ -47,7 +47,11 @@ Requirements that drive the choice:
    plus the native JSON.
 
 5. **Actions:** `plan` → `apply` with a dry-run by default. Quarantine (move to a dated folder
-   with a restore manifest) and duplicate replacement with hard links. Never a direct delete.
+   with a restore manifest). A removed duplicate is replaced by a **pointer stub** — a small
+   text file next to where it was, naming the kept original by relative path. No hard links
+   or symlinks: the owner wants people to *see* that a duplicate was removed and where the
+   original is, and links are invisible and behave surprisingly on shares. Never a direct
+   delete.
 
 6. **Distribution:** single executable per OS via GitHub Releases. No installer in the MVP.
 
@@ -58,9 +62,10 @@ Requirements that drive the choice:
 - Harder: Go has weak desktop-GUI options, hence the browser-based UI; a colleague must be
   comfortable with "a page opens in the browser". Front-end is plain HTML/JS embedded in the
   binary — no Node build step, to keep the toolchain single-language.
-- Hard links require the same volume and may be unsupported on some network shares; the tool
-  must detect this and fall back to report-only for that group.
-- Dev host currently has no Go toolchain; it must be installed before the first build.
+- Pointer stubs add small files to the repository; they are plain text, human-readable,
+  and removed by `restore`. They work on any file system, including network shares.
+- Dev host currently has no Go toolchain; it is installed per-user from the official zip
+  (no admin rights) — see `AGENTS/ENV.md`.
 
 ## Alternatives considered
 
@@ -75,4 +80,6 @@ Requirements that drive the choice:
 - **TUI instead of web UI** — fine for developers, unfriendly for document-oriented users and
   poor for wide tables of paths and sizes.
 - **Native desktop GUI in Go (Fyne, Wails)** — heavier dependencies (cgo, WebView2), harder
-  builds; revisit only if the browser UI is rejected.
+  builds; the browser UI was accepted instead.
+- **Hard links / symlinks for duplicates** — rejected by the owner: invisible to users,
+  same-volume restriction, editing one linked copy silently edits all.

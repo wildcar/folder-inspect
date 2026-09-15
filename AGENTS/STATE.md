@@ -6,38 +6,33 @@ the live picture here; push detail into `AGENTS/SPEC.md` (the contract) and `AGE
 
 ## Goal
 
-Build folder-inspect: a Go tool that finds oversized files (graded by kind), archives, junk,
-duplicates and near-duplicates in project document repositories, shows them in a local web UI
-with exports, and cleans up via quarantine and hard links. Contract: `AGENTS/SPEC.md` v0.1.
+Build folder-inspect: a Go tool that finds oversized files (graded by kind), archives and
+distributives, junk, duplicates and near-duplicates in project document repositories, shows
+them in a local web UI with exports, and cleans up via quarantine with pointer stubs.
+Contract: `AGENTS/SPEC.md` v0.2.
 
 ## Now
 
-- Discovery answered 2026-09-15; ADR-0001 (Go, CLI core + JSON result + local web UI) recorded.
-- SPEC v0.1 written as the contract; open ❓ items listed there and in the questionnaire.
-- **Blocked on toolchain:** Go is not installed on the dev host — install before scaffolding.
+- Discovery closed 2026-09-15: every question answered; ADR-0001 accepted; SPEC v0.2; MIT license added.
+- **Blocked on toolchain:** Go is not installed on the dev host. Per-user install command (no admin)
+  is in `AGENTS/ENV.md`; the owner was given it in chat.
 - No code yet.
 
 ## Next
 
-1. Install Go on the dev host (owner or agent with permission); record version in `AGENTS/ENV.md`.
+1. Owner installs Go 1.27.x per-user; agent verifies `go version` and records it in `AGENTS/ENV.md`.
 2. Scaffold: `go.mod`, `cmd/folder-inspect`, `internal/{scan,detect,report,config}`, fixture generator in `testdata/`.
-3. MVP slice 1: `scan` → `report.json` + console summary with size rules, archives, junk, empty dirs.
+3. MVP slice 1: `scan` → `report.json` + console summary: size rules, archives + distributives, junk, empty dirs.
 4. MVP slice 2: exact duplicates; exports CSV/XLSX/HTML.
-5. MVP slice 3: embedded web UI; `plan` / `apply` / `restore` with quarantine.
-6. Then: hard-link replacement, near-duplicate names, RU/EN.
+5. MVP slice 3: embedded web UI with canonical-file pick; `plan` / `apply` / `restore`, quarantine, pointer stubs.
+6. Then: near-duplicate names, RU/EN.
 
 ## Open questions
 
-- Web UI in the browser accepted as the "proper interface"? (ADR-0001, A11)
-- Thresholds for xls/xlsx (15 MB?) and pdf (30 MB?). (A6)
-- Report installers (exe/msi/deb/rpm/dmg/pkg) as a "distributive" category? (A7)
-- Hard links acceptable given "edit one copy = edit all"? (A10)
-- Canonical file in a duplicate group: oldest mtime / shortest path / manual pick? (A9)
-- Quarantine location: inside root vs. configured folder outside. (A10)
-- More near-duplicate name patterns from practice. (A9)
-- License: MIT? (B9)
+- Near-duplicate name patterns — extend from practice as they come up (FR-20).
+- Optional Windows `.lnk` next to the pointer stub — only if colleagues ask (FR-43).
+- Size unit for thresholds and display: 1 MB = 1 000 000 or 1 048 576 bytes — decide in the first size-rule commit.
 
 ## Deferred
 
 - Definition of Done steps 1–3 (build, lint, tests) — no code and no Go toolchain yet.
-- LICENSE file — pending B9.

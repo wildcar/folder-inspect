@@ -13,9 +13,24 @@ If the project runs in more than one place (e.g. local dev + a server), split pe
 ## Tools
 
 - git 2.53 (Windows). No `gh` CLI installed.
-- **Go: NOT installed** as of 2026-09-15 (stack chosen in ADR-0001). Install with
-  `winget install GoLang.Go` or `choco install golang` (chocolatey is present), then restart the shell.
-  Record the version here once installed.
+- **Go: NOT installed** as of 2026-09-15 (stack chosen in ADR-0001). The dev user has **no admin
+  rights**, so the MSI / winget / choco routes are out. Per-user install from the official zip
+  into `%LOCALAPPDATA%\Programs\go`, user PATH only (PowerShell 7):
+
+  ```powershell
+  $ver = (Invoke-RestMethod 'https://go.dev/dl/?mode=json')[0].version
+  $zip = "$env:TEMP\$ver.windows-amd64.zip"
+  Invoke-WebRequest "https://go.dev/dl/$ver.windows-amd64.zip" -OutFile $zip
+  New-Item -ItemType Directory -Force "$env:LOCALAPPDATA\Programs" | Out-Null
+  if (Test-Path "$env:LOCALAPPDATA\Programs\go") { Remove-Item -Recurse -Force "$env:LOCALAPPDATA\Programs\go" }
+  Expand-Archive $zip -DestinationPath "$env:LOCALAPPDATA\Programs" -Force
+  $userPath = [Environment]::GetEnvironmentVariable('Path', 'User')
+  [Environment]::SetEnvironmentVariable('Path', "$env:LOCALAPPDATA\Programs\go\bin;$env:USERPROFILE\go\bin;$userPath", 'User')
+  & "$env:LOCALAPPDATA\Programs\go\bin\go.exe" version
+  ```
+
+  Restart the terminal (and the Claude desktop app) afterwards so the new PATH is picked up.
+  Latest stable on 2026-09-15: go1.27.1 (zip ≈ 79 MB). Record the installed version here.
 - Also present but not used by the project: Python 3.14, Node.js, PostgreSQL 18 client, Pandoc.
 
 ## Credentials & secrets
