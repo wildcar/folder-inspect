@@ -10,31 +10,37 @@ Build folder-inspect: a Go tool that finds oversized files (graded by kind), arc
 distributives, junk, duplicate files and folders, copy candidates by name in project document
 repositories, shows them in a local web UI with exports, and cleans up via quarantine with
 explanatory stubs — by ticks in the UI or by rules from the CLI. Contract: `AGENTS/SPEC.md`
-v0.2 — every FR-1…FR-46 including FR-41a is implemented.
+v0.2 — every FR-1…FR-46 including FR-41a and FR-42a is implemented.
 
 ## Now
 
-- v0.1.0 released 2026-09-15 by the owner via the tag workflow; CI green on main.
-- `plan` from rules added 2026-09-15 (FR-41a): `-select` categories, `-duplicates` /
-  `-dir-duplicates oldest|newest|shallowest`, `-include/-exclude/-min-size`, `-dry-run`,
-  `-quiet` (path only, for scripts), `-out/-force`. Similar names and overlaps are refused
-  by design. Verified on the fixture end to end (plan → apply → quarantine list → restore).
-- Build/vet/gofmt/tests green (11 packages, 6 new rule tests).
+- v0.2.0 released 2026-09-15 (plan from rules, CI, releases). After the tag, on main:
+  - delete categories (FR-42a): junk, empty files and folders are deleted outright by `apply`
+    (re-checked as empty first), recorded in the manifest, empty ones recreated by `restore`,
+    junk counted as gone; status `deleted` for junk-only batches; `delete_categories: []`
+    restores the old behaviour;
+  - UI: 📂 for each folder of an overlapping pair; folders open in Explorer / file manager
+    directly instead of being selected in their parent.
+- Verified on the fixture: plan (junk, empty, archive) → apply prints 1 moved / 7 deleted /
+  1 stub → list → restore recreates 3 empties, brings the archive back, reports 4 junk as gone.
+  UI overlap view checked in the browser (two icons per row).
+- Build/vet/gofmt/tests green (11 packages).
 
 ## Next
 
-1. Owner tries `plan -select junk -dry-run` on a real repository; then tag v0.2.0.
+1. Owner tries apply on a real repository (junk deletion, empties restored) → tag v0.2.1.
 2. Windows OS-locale detection for the default language.
 3. `**` globs in exclusions, junk patterns and plan filters.
 4. Owner review of the similar-name markers on real data; stub text for copies.
 
 ## Open questions
 
+- Should `.bak` stay in junk now that junk is deleted outright (a .bak may hold content)? Owner
+  listed bak as junk at discovery; ask if a real repository shows valuable .bak files.
 - Markers list: add `_итоговый`, `(старая версия)`, `- финал`? Collect from the owner's real names.
-- Should `plan` also accept `-rule <size rule name>` (e.g. only `image` oversize)? Wait for a need.
 - Purge from the UI stays out by design; revisit only if colleagues ask.
 
 ## Deferred
 
 - linux/arm64 or macOS builds — add to `scripts/build.sh` only if someone asks.
-- Per-folder summary note as an option.
+- Per-folder summary note as an option; `-rule <size rule>` filter for `plan`.

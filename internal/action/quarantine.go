@@ -16,6 +16,7 @@ type Batch struct {
 	Items    int       `json:"items"`    // entries in the manifest
 	Pending  int       `json:"pending"`  // entries still in quarantine
 	Restored int       `json:"restored"` // entries brought back
+	Deleted  int       `json:"deleted"`  // entries deleted outright, not restorable
 	Size     int64     `json:"size"`     // bytes of the pending entries
 	Status   string    `json:"status"`   // active | restored | partial | purged
 }
@@ -50,9 +51,14 @@ func ListBatches(root, quarantineDir string) ([]Batch, error) {
 func Describe(m *Manifest) Batch {
 	b := Batch{Manifest: m, Path: m.Path, Items: len(m.Entries)}
 	for _, e := range m.Entries {
-		if e.Restored {
+		switch {
+		case e.Restored:
 			b.Restored++
-		} else if m.Purged == nil { // purged copies are gone: nothing pending
+		case e.Op == OpDelete && (e.IsDir || e.Size == 0):
+			b.Pending++ // an empty item: restore recreates it
+		case e.Op == OpDelete:
+			b.Deleted++ // junk with content: gone
+		case m.Purged == nil: // purged copies are gone: nothing pending
 			b.Pending++
 			b.Size += e.Size
 		}
@@ -60,6 +66,8 @@ func Describe(m *Manifest) Batch {
 	switch {
 	case m.Purged != nil:
 		b.Status = "purged"
+	case b.Pending == 0 && b.Restored == 0 && b.Deleted > 0:
+		b.Status = "deleted"
 	case b.Pending == 0 && b.Items > 0:
 		b.Status = "restored"
 	case b.Restored > 0:
@@ -89,7 +97,7 @@ func Purge(m *Manifest, dryRun bool) (*PurgeResult, error) {
 	batch := filepath.Clean(m.Dir)
 	for i := range m.Entries {
 		e := &m.Entries[i]
-		if e.Restored {
+		if e.Restored || e.Op == OpDelete { // nothing in the batch folder for deleted items
 			continue
 		}
 		to := filepath.Clean(e.To)

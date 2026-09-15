@@ -4,6 +4,12 @@ Newest first. Each entry ≤5 lines using the format defined in `AGENTS.md`.
 
 ---
 
+## 2026-09-15 · Delete categories, reveal for overlapping folders
+- What: `quarantine.delete_categories` (default junk, empty-file, empty-dir) — `apply` deletes these outright after re-checking emptiness, records `op: delete` entries without a quarantine path; `restore` recreates empty items and counts junk as gone; `Describe` status `deleted`, `Purge` skips them; console/UI summaries show moved + deleted. UI: a 📂 button for each folder of an overlapping pair; Explorer/open opens folders themselves. v0.2.0 tagged before these changes.
+- Why: owner feedback after v0.2.0 — junk and empties are not worth quarantine copies or stubs; overlapping-folder pairs had no way to open either folder.
+- Files: internal/config/config.go, internal/action/{apply,restore,quarantine,plan,options}.go, internal/action/delete_test.go, cmd/folder-inspect/{cmd_apply,cmd_restore,cmd_quarantine}.go, internal/ui/{server.go,reveal_windows.go,reveal_other.go,static/app.js}, internal/i18n/i18n.go, docs/folder-inspect.example.yml, AGENTS.md, AGENTS/SPEC.md, README.md
+- Next: owner tries it on a real repository; tag v0.2.1; OS-locale detection; `**` globs.
+
 ## 2026-09-15 · `plan` from rules
 - What: `action.FromRules` (categories → quarantine; duplicate / folder groups with an explicit keep policy oldest|newest|shallowest; include/exclude globs, min-size; folder actions win over items inside; files in kept folders protected) + `Plan.SaveAs`; `plan` command (-select, -duplicates, -dir-duplicates, -include, -exclude, -min-size, -out/-force, -dry-run, -quiet); i18n `plan.*`; unit tests; verified on the fixture: plan → apply → list → restore.
 - Why: owner released v0.1.0 and asked for the rule-based plan (FR-41a) for scripted clean-ups without the UI.

@@ -15,19 +15,24 @@ func OptionsFromConfig(cfg *config.Config, lang, planPath string, findings map[s
 	for _, c := range cfg.Quarantine.StubCategories {
 		cats[c] = true
 	}
+	del := make(map[string]bool, len(cfg.Quarantine.DeleteCategories))
+	for _, c := range cfg.Quarantine.DeleteCategories {
+		del[c] = true
+	}
 	videos := make(map[string]bool, len(cfg.Videos))
 	for _, v := range cfg.Videos {
 		videos[v] = true
 	}
 	return ApplyOptions{
-		QuarantineDir:  cfg.Quarantine.Dir,
-		Stubs:          cfg.Quarantine.Stubs,
-		StubCategories: cats,
-		StubTexts:      cfg.Quarantine.StubTexts,
-		Videos:         videos,
-		Lang:           lang,
-		PlanPath:       planPath,
-		Findings:       findings,
+		QuarantineDir:    cfg.Quarantine.Dir,
+		Stubs:            cfg.Quarantine.Stubs,
+		StubCategories:   cats,
+		StubTexts:        cfg.Quarantine.StubTexts,
+		DeleteCategories: del,
+		Videos:           videos,
+		Lang:             lang,
+		PlanPath:         planPath,
+		Findings:         findings,
 	}
 }
 

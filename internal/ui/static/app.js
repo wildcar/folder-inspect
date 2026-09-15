@@ -153,7 +153,7 @@
   function renderApplyResult(main) {
     const a = state.lastApply;
     if (!a) { state.view = 'summary'; return renderMain(); }
-    let html = `<h2>${esc(t('ui.apply_result'))} <span class="muted">${esc(tf('ui.apply_summary', a.moved, a.stubs, a.problems.length))}</span></h2>`;
+    let html = `<h2>${esc(t('ui.apply_result'))} <span class="muted">${esc(tf('ui.apply_summary', a.moved, a.deleted || 0, a.stubs, a.problems.length))}</span></h2>`;
     if (a.dry_run) html += `<p class="hint">${esc(t('ui.apply_dry_note'))}</p>`;
     else if (a.manifests.length) {
       html += `<p class="hint">${esc(t('ui.apply_manifest'))}</p><ul class="roots">${a.manifests.map((m) => `<li>${esc(m)}</li>`).join('')}</ul>`;
@@ -166,7 +166,7 @@
     }
     if (a.entries.length) {
       html += `<table><tr><th>${esc(t('ui.col_action'))}</th><th>${esc(t('ui.col_from'))}</th><th>${esc(t('ui.col_to'))}</th><th>${esc(t('ui.col_stub'))}</th></tr>`;
-      for (const e of a.entries) html += `<tr><td class="tag">${esc(t('op.' + e.op))}</td><td class="path">${esc(e.from)}</td><td class="path">${esc(e.to)}</td><td class="path">${esc(e.stub ? e.stub.split(/[\\/]/).pop() : '')}</td></tr>`;
+      for (const e of a.entries) html += `<tr><td class="tag">${esc(t('op.' + e.op))}</td><td class="path">${esc(e.from)}</td><td class="path">${e.to ? esc(e.to) : '—'}</td><td class="path">${esc(e.stub ? e.stub.split(/[\\/]/).pop() : '')}</td></tr>`;
       html += '</table>';
     }
     html += `<p><button class="btn" id="backBtn">${esc(t('ui.apply_back'))}</button></p>`;
@@ -373,11 +373,12 @@
     html += `<p class="hint">${esc(t('ui.overlap_hint'))}</p>` + toolbar(`<span class="muted">${rows.length}/${all.length}</span>`);
     html += `<table><tr>${th('path', t('col.path'))}<th>${esc(t('col.related'))}</th>${th('size', t('col.size'), 'num')}<th class="num">${esc(t('col.shared_files'))}</th>${th('ratio', t('col.ratio'), 'num')}<th class="num">${esc(t('col.ratio_a'))}</th><th class="num">${esc(t('col.ratio_b'))}</th></tr>`;
     for (const o of rows) {
-      html += `<tr><td class="path">${pathHtml(o.a.path, o.a.rel)} <span class="muted">(${humanSize(o.a.size)}, ${o.a.files})</span></td><td class="path">${pathHtml(o.b.path, o.b.rel)} <span class="muted">(${humanSize(o.b.size)}, ${o.b.files})</span></td><td class="num">${humanSize(o.shared_bytes)}</td><td class="num">${o.shared_files}</td><td class="num">${pct(o.ratio)}</td><td class="num">${pct(o.ratio_a)}</td><td class="num">${pct(o.ratio_b)}</td></tr>`;
+      html += `<tr><td class="path">${pathHtml(o.a.path, o.a.rel)} <span class="muted">(${humanSize(o.a.size)}, ${o.a.files})</span> <button class="reveal" data-path="${esc(o.a.path)}" title="${esc(t('ui.reveal'))}">📂</button></td><td class="path">${pathHtml(o.b.path, o.b.rel)} <span class="muted">(${humanSize(o.b.size)}, ${o.b.files})</span> <button class="reveal" data-path="${esc(o.b.path)}" title="${esc(t('ui.reveal'))}">📂</button></td><td class="num">${humanSize(o.shared_bytes)}</td><td class="num">${o.shared_files}</td><td class="num">${pct(o.ratio)}</td><td class="num">${pct(o.ratio_a)}</td><td class="num">${pct(o.ratio_b)}</td></tr>`;
     }
     if (!rows.length) html += `<tr><td colspan="7" class="empty">${esc(t('ui.no_items'))}</td></tr>`;
     html += '</table>';
     main.innerHTML = html;
+    main.querySelectorAll('button.reveal[data-path]').forEach((b) => b.addEventListener('click', () => reveal(b.dataset.path)));
     bindFilter(main, () => renderOverlaps(main));
     bindSort(main, () => renderOverlaps(main));
   }
@@ -433,7 +434,7 @@
     if (!list.length) { main.innerHTML = html + `<p class="empty">${esc(t('ui.q_empty'))}</p>`; return; }
     html += `<table><tr><th>${esc(t('ui.q_created'))}</th><th>${esc(t('ui.q_status'))}</th><th class="num">${esc(t('ui.q_pending'))}</th><th class="num">${esc(t('ui.q_items'))}</th><th class="num">${esc(t('col.size'))}</th><th>${esc(t('col.path'))}</th><th></th></tr>`;
     list.forEach((b, i) => {
-      const status = { active: 'ui.q_active', restored: 'ui.q_restored', partial: 'ui.q_partial', purged: 'ui.q_purged' }[b.status] || b.status;
+      const status = { active: 'ui.q_active', restored: 'ui.q_restored', partial: 'ui.q_partial', purged: 'ui.q_purged', deleted: 'ui.q_deleted' }[b.status] || b.status;
       html += `<tr data-i="${i}"><td class="tag">${fmtTime(b.created)}</td><td class="tag">${esc(t(status))}</td><td class="num">${b.pending}</td><td class="num">${b.items}</td><td class="num">${humanSize(b.size)}</td><td class="path">${esc(b.dir)} <button class="reveal" title="${esc(t('ui.reveal'))}">📂</button></td><td><button class="btn small restore" ${b.pending ? '' : 'disabled'}>${esc(t('ui.q_restore'))}</button></td></tr>`;
     });
     html += '</table><p id="qStatus" class="muted"></p>';
@@ -453,7 +454,7 @@
           await rescan();
           state.view = 'quarantine';
           render();
-          $('#qStatus').textContent = tf('ui.q_restore_done', j.restored, j.problems.length);
+          $('#qStatus').textContent = tf('ui.q_restore_done', j.restored, j.problems.length, j.gone || 0);
         } catch (e) {
           $('#qStatus').textContent = e.message;
         }

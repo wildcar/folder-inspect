@@ -22,6 +22,8 @@ MEMORY.md = durable facts/agreements; current state -> STATE.md; iteration log -
 - The owner has no opinion on licensing — MIT was accepted on the agent's suggestion (2026-09-15); do not re-ask.
 - Similar-name groups are per folder, not repository-wide (owner decision 2026-09-15); why: copies land next to their source, cross-folder groups were noise.
 - On Windows, never pass `/select,<path>` to explorer.exe as a Go argument — Go quotes it whole and Explorer opens Documents; build the command line via `SysProcAttr.CmdLine` (2026-09-15).
+- Junk, empty files and empty folders are deleted outright, no quarantine copy and no stub (owner decision 2026-09-15: "нет смысла в карантин помещать и файлы заглушки оставлять"); why: they carry nothing worth keeping and the copies only cluttered the quarantine. Empty items are re-checked before deletion and recreated by restore; the exception is configurable (`quarantine.delete_categories`).
+- "Show in file manager" opens a folder itself (not selected in its parent) and every folder of an overlapping pair has its own icon (owner request 2026-09-15).
 - Outputs must never be overwritten silently (owner feedback 2026-09-15 after `report.json` was replaced by a second run); why: colleagues will run scans repeatedly and compare — a lost report is lost evidence. Rule now in AGENTS.md → Project Rules.
 
 ## Project facts

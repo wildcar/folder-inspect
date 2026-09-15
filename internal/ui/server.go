@@ -100,6 +100,7 @@ func (s *Server) handleQuarantine(w http.ResponseWriter, r *http.Request) {
 type restoreResponse struct {
 	Restored int              `json:"restored"`
 	Problems []action.Problem `json:"problems"`
+	Gone     int              `json:"gone"`
 }
 
 // handleRestore brings one batch back. The manifest must lie inside a root.
@@ -135,7 +136,7 @@ func (s *Server) handleRestore(w http.ResponseWriter, r *http.Request) {
 		res.Problems = []action.Problem{}
 	}
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	json.NewEncoder(w).Encode(restoreResponse{Restored: res.Restored, Problems: res.Problems})
+	json.NewEncoder(w).Encode(restoreResponse{Restored: res.Restored, Gone: res.Gone, Problems: res.Problems})
 }
 
 type rescanResponse struct {
@@ -183,6 +184,7 @@ type applyResponse struct {
 	DryRun    bool             `json:"dry_run"`
 	Plan      string           `json:"plan,omitempty"`
 	Moved     int              `json:"moved"`
+	Deleted   int              `json:"deleted"`
 	Stubs     int              `json:"stubs"`
 	Manifests []string         `json:"manifests"`
 	Entries   []action.Entry   `json:"entries"`
@@ -234,7 +236,7 @@ func (s *Server) handleApply(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	resp.Moved, resp.Stubs, resp.Problems = res.Moved, res.Stubs, res.Problems
+	resp.Moved, resp.Deleted, resp.Stubs, resp.Problems = res.Moved, res.Deleted, res.Stubs, res.Problems
 	if resp.Problems == nil {
 		resp.Problems = []action.Problem{}
 	}

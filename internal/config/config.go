@@ -77,6 +77,11 @@ type QuarantineConfig struct {
 	StubCategories []string `yaml:"stub_categories" json:"stub_categories"`
 	// StubTexts overrides the reason paragraph per category (plain text).
 	StubTexts map[string]string `yaml:"stub_texts" json:"stub_texts,omitempty"`
+	// DeleteCategories lists finding categories that apply deletes outright
+	// instead of moving to quarantine (owner decision 2026-09-15: junk and
+	// empty items are not worth a quarantine copy or a stub). Empty files and
+	// folders are re-verified as empty first and can be recreated by restore.
+	DeleteCategories []string `yaml:"delete_categories" json:"delete_categories"`
 }
 
 // StubFor reports whether a category gets a stub.
@@ -130,9 +135,10 @@ func Default() *Config {
 		SimilarNames:     SimilarNamesConfig{Enabled: true},
 		Videos:           []string{"mp4", "mkv", "avi", "mov", "wmv", "m4v", "mpg", "mpeg", "webm", "3gp", "insv", "lrv", "m4a", "mp3", "wav", "flac"},
 		Quarantine: QuarantineConfig{
-			Dir:            ".folder-inspect/quarantine",
-			Stubs:          true,
-			StubCategories: []string{"oversize", "archive", "distributive", "duplicate", "dir-duplicate", "similar-name"},
+			Dir:              ".folder-inspect/quarantine",
+			Stubs:            true,
+			StubCategories:   []string{"oversize", "archive", "distributive", "duplicate", "dir-duplicate", "similar-name"},
+			DeleteCategories: []string{"junk", "empty-file", "empty-dir"},
 		},
 	}
 }

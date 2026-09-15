@@ -25,6 +25,10 @@ const (
 	// OpQuarantineDir moves a duplicate folder into quarantine and leaves a
 	// pointer stub naming the Original folder.
 	OpQuarantineDir Op = "quarantine-dir"
+	// OpDelete appears only in manifests: apply deleted the item outright
+	// (junk, empty file or folder — see quarantine.delete_categories). A plan
+	// cannot request it; apply decides by category.
+	OpDelete Op = "delete"
 )
 
 var ops = map[Op]bool{OpQuarantine: true, OpQuarantineDuplicate: true, OpQuarantineDir: true}

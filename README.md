@@ -17,12 +17,15 @@ safely. It reports what should not be there:
 Clean-up plans come either from ticks in the web UI or from rules on the command line
 (`plan -select junk,archive -duplicates oldest`) for repeatable, scripted clean-ups.
 
-**Nothing is ever deleted.** You tick what to remove in the web UI; `apply` moves those files
-into a dated quarantine folder inside the repository and leaves a short `<name>.removed.txt`
-note where each file was: what was removed, when, why (archive, distributive, video, oversized,
-or a duplicate with the relative path to the kept original) and how to bring it back.
-`restore` puts everything back and removes the notes; `quarantine list|show` inspects the
-batches, and only `quarantine purge -yes` deletes quarantined copies for good. Not related to git.
+**Documents are never deleted.** You tick what to remove in the web UI; `apply` moves those
+files into a dated quarantine folder inside the repository and leaves a short
+`<name>.removed.txt` note where each file was: what was removed, when, why (archive,
+distributive, video, oversized, or a duplicate with the relative path to the kept original) and
+how to bring it back. Junk, empty files and empty folders are the exception: they are deleted
+right away, without a quarantine copy or a note (configurable via `quarantine.delete_categories`);
+`restore` recreates the empty ones. `restore` puts everything else back and removes the notes;
+`quarantine list|show` inspects the batches, and only `quarantine purge -yes` deletes
+quarantined copies for good. Not related to git.
 
 Status: **all MVP features work** — scan, duplicates (files, folders, names), exports, web UI
 with rescan/apply/restore, CLI apply/restore/quarantine. Stack: Go, single executable for

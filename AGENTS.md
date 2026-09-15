@@ -116,7 +116,7 @@ Hard constraints and invariants this project must not violate. Keep each rule on
 
 - The product must not depend on, detect, or assume git — the scanned "repositories" are document folders.
 - Read-only by default: no file-system change happens outside an explicit `apply` of a reviewed plan.
-- The tool never deletes user files directly; removal means quarantine with a restore manifest. `apply` re-verifies a duplicate against its original right before moving it.
+- The tool never deletes user documents directly; removal means quarantine with a restore manifest. `apply` re-verifies a duplicate against its original right before moving it. The one owner-approved exception (2026-09-15): junk, empty files and empty folders (`quarantine.delete_categories`) are deleted outright — no copy, no stub — after re-checking that empty items are still empty; the manifest records them and `restore` recreates the empty ones.
 - Stub texts (`stub.*` keys) are user-facing documents left in the owner's repositories: keep them calm, factual, and free of tool jargon; the owner's own texts from the config win.
 - Permanent deletion exists only in `quarantine purge` behind `-yes`, only inside a batch folder, never from the UI.
 - Never traverse symlinks/junctions out of a scan root; never modify system folders or the quarantine folder during a scan.
@@ -145,7 +145,7 @@ Stack: Go 1.27 (module `github.com/wildcar/folder-inspect`), standard toolchain,
 
 ## Architecture
 
-Pipeline: `pipeline.Run` = `scan.Walk` → `detect.Run` + `detect.Duplicates` (the only detector with I/O) + `detect.DuplicateDirs` → `report.Build` → `<root>/.folder-inspect/reports/report-<ts>.json` → console / `export` (csv, xlsx, html) / `ui` (browser) or `plan` (rules) → `plan-<ts>.json` → `action.Apply` → `<root>/.folder-inspect/quarantine/<ts>/` + `manifest.json` + `<name>.removed.txt` stubs → `action.Restore`.
+Pipeline: `pipeline.Run` = `scan.Walk` → `detect.Run` + `detect.Duplicates` (the only detector with I/O) + `detect.DuplicateDirs` → `report.Build` → `<root>/.folder-inspect/reports/report-<ts>.json` → console / `export` (csv, xlsx, html) / `ui` (browser) or `plan` (rules) → `plan-<ts>.json` → `action.Apply` → `<root>/.folder-inspect/quarantine/<ts>/` + `manifest.json` + `<name>.removed.txt` stubs (junk and empty items: deleted outright, manifest only) → `action.Restore`.
 
 ```
 cmd/folder-inspect/   CLI entry point; one file per command (cmd_scan.go, cmd_report.go, cmd_ui.go, cmd_plan.go, cmd_apply.go, cmd_restore.go, cmd_quarantine.go, cmd_fixture.go)

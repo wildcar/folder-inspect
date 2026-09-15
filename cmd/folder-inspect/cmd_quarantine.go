@@ -141,7 +141,7 @@ func quarantinePurge(args []string) int {
 	}
 	fmt.Println(i18n.Tf("q.purge_preview", preview.Deleted, report.HumanSize(preview.Bytes), m.Dir))
 	for _, e := range m.Entries {
-		if !e.Restored {
+		if !e.Restored && e.To != "" {
 			fmt.Printf("  - %s\n", e.To)
 		}
 	}

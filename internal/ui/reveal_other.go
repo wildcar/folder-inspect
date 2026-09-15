@@ -9,14 +9,19 @@ import (
 	"runtime"
 )
 
-// reveal opens the file manager at the path (macOS selects the item; on
-// Linux the containing folder is opened).
+// reveal opens the file manager: a folder is opened itself; a file is
+// selected on macOS and its containing folder is opened on Linux.
 func reveal(path string) error {
+	st, err := os.Stat(path)
+	isDir := err == nil && st.IsDir()
 	if runtime.GOOS == "darwin" {
+		if isDir {
+			return exec.Command("open", path).Start()
+		}
 		return exec.Command("open", "-R", path).Start()
 	}
 	dir := path
-	if st, err := os.Stat(path); err == nil && !st.IsDir() {
+	if !isDir {
 		dir = filepath.Dir(path)
 	}
 	return exec.Command("xdg-open", dir).Start()

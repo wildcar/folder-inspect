@@ -16,13 +16,16 @@ type RestoreOptions struct {
 // RestoreResult sums up a restore run.
 type RestoreResult struct {
 	Restored int
+	Gone     int // deleted outright (junk) — nothing to bring back
 	Problems []Problem
 }
 
 // Restore moves every not-yet-restored entry of a manifest back to where
 // it was and removes the stub. An entry whose original place is occupied
-// again is left in quarantine and reported. The manifest is updated so a
-// second restore skips what is already back.
+// again is left in quarantine and reported. Deleted entries are recreated
+// when they were empty (an empty file or folder); deleted junk cannot come
+// back and is reported. The manifest is updated so a second restore skips
+// what is already back.
 func Restore(m *Manifest, opt RestoreOptions) (*RestoreResult, error) {
 	res := &RestoreResult{}
 	// Shallower paths first: a folder comes back before the files that were
@@ -36,6 +39,21 @@ func Restore(m *Manifest, opt RestoreOptions) (*RestoreResult, error) {
 	for _, i := range order {
 		e := &m.Entries[i]
 		if e.Restored {
+			continue
+		}
+		if e.Op == OpDelete {
+			if !e.IsDir && e.Size > 0 { // junk with content: gone for good, not an error
+				res.Gone++
+				continue
+			}
+			if err := recreate(e, opt.DryRun); err != nil {
+				res.Problems = append(res.Problems, Problem{Path: e.From, Err: err.Error()})
+				continue
+			}
+			if !opt.DryRun {
+				e.Restored = true
+			}
+			res.Restored++
 			continue
 		}
 		if _, err := os.Lstat(e.To); err != nil {
@@ -73,6 +91,28 @@ func Restore(m *Manifest, opt RestoreOptions) (*RestoreResult, error) {
 		pruneEmptyDirs(m.Dir, m.Path)
 	}
 	return res, nil
+}
+
+// recreate brings a deleted entry back when nothing was lost: an empty
+// folder or a zero-size file. Junk with content is gone for good.
+func recreate(e *Entry, dryRun bool) error {
+	if _, err := os.Lstat(e.From); err == nil {
+		return errors.New(i18n.T("err.exists_now"))
+	}
+	if dryRun {
+		return nil
+	}
+	if e.IsDir {
+		return os.MkdirAll(e.From, 0o755)
+	}
+	if err := os.MkdirAll(filepath.Dir(e.From), 0o755); err != nil {
+		return err
+	}
+	f, err := os.OpenFile(e.From, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o644)
+	if err != nil {
+		return err
+	}
+	return f.Close()
 }
 
 func sortByDepthAsc(idx []int, entries []Entry) {

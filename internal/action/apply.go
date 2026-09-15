@@ -32,9 +32,9 @@ type Problem struct {
 
 // Entry is one moved item, enough to undo it.
 type Entry struct {
-	Op       Op     `json:"op"`
+	Op       Op     `json:"op"`                 // plan op, or OpDelete when deleted outright
 	From     string `json:"from"`               // where it was
-	To       string `json:"to"`                 // where it is now (inside the batch folder)
+	To       string `json:"to"`                 // where it is now (inside the batch folder); "" when deleted
 	Stub     string `json:"stub,omitempty"`     // stub left at From's folder, if any
 	Original string `json:"original,omitempty"` // duplicates: the copy that stayed
 	Category string `json:"category,omitempty"`
@@ -66,10 +66,14 @@ type ApplyOptions struct {
 	Stubs          bool              // leave "<name>.removed.txt" files
 	StubCategories map[string]bool   // categories that get a stub
 	StubTexts      map[string]string // custom reason per category (overrides the built-in text)
-	Videos         map[string]bool   // extensions explained as video
-	Lang           string            // stub language ("" = current)
-	Now            time.Time         // batch timestamp ("" = now)
-	PlanPath       string            // recorded in the manifest
+	// DeleteCategories are deleted outright instead of quarantined (junk,
+	// empty-file, empty-dir by default). Empty items are re-verified as empty
+	// first; anything else in the category goes to quarantine after all.
+	DeleteCategories map[string]bool
+	Videos           map[string]bool // extensions explained as video
+	Lang             string          // stub language ("" = current)
+	Now              time.Time       // batch timestamp ("" = now)
+	PlanPath         string          // recorded in the manifest
 	// Findings by path gives stubs the rule and threshold of an oversized file.
 	Findings map[string]detect.Finding
 }
@@ -77,17 +81,21 @@ type ApplyOptions struct {
 // ApplyResult sums up an apply run.
 type ApplyResult struct {
 	Manifests []*Manifest
-	Moved     int
+	Moved     int // items moved into quarantine
+	Deleted   int // items deleted outright (delete categories)
 	Stubs     int
 	Problems  []Problem
 }
 
 // Apply carries out a validated plan: every path moves into
 // <root>/<quarantine>/<ts>/<relative path> and, for the configured
-// categories, a stub explaining the removal is left in its place. Nothing
-// is deleted. Duplicates are re-verified against their original first; a
-// missing or changed original leaves the copy untouched. In dry-run mode
-// nothing is written and the manifests describe what would happen.
+// categories, a stub explaining the removal is left in its place. Items of
+// the delete categories (junk, empty files and folders by default) are
+// deleted outright and recorded in the manifest; empty ones are re-verified
+// as empty first and can be recreated by Restore. Duplicates are
+// re-verified against their original first; a missing or changed original
+// leaves the copy untouched. In dry-run mode nothing is written and the
+// manifests describe what would happen.
 func Apply(p *Plan, opt ApplyOptions) (*ApplyResult, error) {
 	if err := p.Validate(); err != nil {
 		return nil, err
@@ -134,7 +142,11 @@ func Apply(p *Plan, opt ApplyOptions) (*ApplyResult, error) {
 				continue
 			}
 			m.Entries = append(m.Entries, e)
-			res.Moved++
+			if e.Op == OpDelete {
+				res.Deleted++
+			} else {
+				res.Moved++
+			}
 			if e.Stub != "" {
 				res.Stubs++
 			}
@@ -185,6 +197,17 @@ func applyOne(a Action, root, batch string, m *Manifest, opt ApplyOptions) (Entr
 		e.Size = st.Size()
 	}
 
+	if opt.DeleteCategories[a.Category] && a.Op == OpQuarantine && deletable(a, st) {
+		e.Op, e.To = OpDelete, ""
+		if opt.DryRun {
+			return e, nil
+		}
+		if err := os.RemoveAll(a.Path); err != nil {
+			return Entry{}, err
+		}
+		return e, nil
+	}
+
 	wantStub := opt.Stubs && opt.StubCategories[a.Category]
 	if wantStub {
 		e.Stub = filepath.Join(filepath.Dir(a.Path), filepath.Base(a.Path)+".removed.txt")
@@ -213,6 +236,31 @@ func applyOne(a Action, root, batch string, m *Manifest, opt ApplyOptions) (Entr
 		}
 	}
 	return e, nil
+}
+
+// deletable re-checks an item of a delete category right before deleting
+// it: an "empty" file must still be empty and an "empty" folder must hold
+// no files (only empty sub-folders). Junk is deleted as matched. Anything
+// that fails the check is quarantined instead.
+func deletable(a Action, st fs.FileInfo) bool {
+	switch a.Category {
+	case string(detect.EmptyFile):
+		return !st.IsDir() && st.Size() == 0
+	case string(detect.EmptyDir):
+		if !st.IsDir() {
+			return false
+		}
+		hasFile := false
+		filepath.WalkDir(a.Path, func(p string, d fs.DirEntry, err error) error {
+			if err != nil || (!d.IsDir() && p != a.Path) {
+				hasFile = true
+				return fs.SkipAll
+			}
+			return nil
+		})
+		return !hasFile
+	}
+	return true
 }
 
 // sameContent re-verifies a duplicate against its original right before

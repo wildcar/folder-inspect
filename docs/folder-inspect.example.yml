@@ -88,6 +88,10 @@ quarantine:
   dir: .folder-inspect/quarantine   # relative to the scanned root
   stubs: true                       # leave "<name>.removed.txt" where a file was
   stub_categories: [oversize, archive, distributive, duplicate, dir-duplicate, similar-name]
+  # Categories deleted right away instead of quarantined — no copy, no stub. Empty files and
+  # folders are re-checked as empty before deletion and `restore` recreates them; deleted junk
+  # is gone for good. Set to [] to quarantine everything.
+  delete_categories: [junk, empty-file, empty-dir]
   # Optional: your own reason text per category (replaces the built-in paragraph).
   # stub_texts:
   #   archive: "Old versions are available in the change history; archives are not stored here."

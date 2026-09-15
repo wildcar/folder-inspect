@@ -76,7 +76,9 @@ func runApply(args []string) int {
 	for _, m := range res.Manifests {
 		for _, e := range m.Entries {
 			fmt.Printf("  %-28s %s\n", i18n.T("op."+string(e.Op)), e.From)
-			fmt.Printf("  %-28s -> %s\n", "", e.To)
+			if e.To != "" {
+				fmt.Printf("  %-28s -> %s\n", "", e.To)
+			}
 			if e.Stub != "" {
 				fmt.Printf("  %-28s +  %s\n", "", filepath.Base(e.Stub))
 			}
@@ -90,7 +92,7 @@ func runApply(args []string) int {
 		}
 		fmt.Println()
 	}
-	fmt.Println(i18n.Tf("apply.summary", res.Moved, res.Stubs, len(res.Problems)))
+	fmt.Println(i18n.Tf("apply.summary", res.Moved, res.Deleted, res.Stubs, len(res.Problems)))
 	if *dryRun {
 		fmt.Println(i18n.T("apply.dry"))
 	} else {

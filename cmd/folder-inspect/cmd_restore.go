@@ -50,10 +50,16 @@ func runRestore(args []string) int {
 	}
 	for _, e := range m.Entries {
 		mark := " "
-		if e.Restored {
+		switch {
+		case e.Restored:
 			mark = "+"
+		case e.Op == action.OpDelete && !e.IsDir && e.Size > 0:
+			mark = "x" // deleted outright, cannot come back
 		}
 		fmt.Printf("  %s %s\n", mark, e.From)
+	}
+	if res.Gone > 0 {
+		fmt.Println(i18n.Tf("restore.gone", res.Gone))
 	}
 	if len(res.Problems) > 0 {
 		fmt.Println(i18n.T("apply.problems"))

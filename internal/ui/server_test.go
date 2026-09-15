@@ -201,7 +201,7 @@ func TestApplyEndpoint(t *testing.T) {
 	}
 	// dry run: reported, nothing moved, no plan saved
 	code, dry, txt := post(applyRequest{Actions: actions, DryRun: true, Lang: "ru"})
-	if code != 200 || !dry.DryRun || dry.Moved != 2 || dry.Plan != "" || len(dry.Entries) != 2 {
+	if code != 200 || !dry.DryRun || dry.Moved != 1 || dry.Deleted != 1 || dry.Plan != "" || len(dry.Entries) != 2 {
 		t.Fatalf("dry run: %d %s", code, txt)
 	}
 	if !exists(junk) || !exists(archive) {
@@ -209,11 +209,11 @@ func TestApplyEndpoint(t *testing.T) {
 	}
 	// real run
 	code, real, txt := post(applyRequest{Actions: actions, DryRun: false, Lang: "ru"})
-	if code != 200 || real.Moved != 2 || real.Stubs != 1 || len(real.Manifests) != 1 || real.Plan == "" {
+	if code != 200 || real.Moved != 1 || real.Deleted != 1 || real.Stubs != 1 || len(real.Manifests) != 1 || real.Plan == "" {
 		t.Fatalf("apply: %d %s", code, txt)
 	}
 	if exists(junk) || exists(archive) || !exists(archive+".removed.txt") || exists(junk+".removed.txt") {
-		t.Error("files must be quarantined; only the archive gets a stub")
+		t.Error("archive quarantined with a stub, junk deleted without one")
 	}
 	if !strings.HasPrefix(real.Manifests[0], filepath.Join(root, ".folder-inspect", "quarantine")) || !exists(real.Manifests[0]) {
 		t.Errorf("manifest: %v", real.Manifests)

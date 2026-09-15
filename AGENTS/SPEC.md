@@ -195,6 +195,15 @@ folder-inspect scan <root...>
   the copy in place and is reported. Symlinks/junctions are never moved. `restore <manifest |
   batch folder | root>` brings entries back (skipping occupied paths), removes their stubs and
   marks them restored in the manifest; the manifest stays as the record.
+- FR-42a ✅ **Delete categories (owner decision 2026-09-15).** Junk, empty files and empty
+  folders are not worth a quarantine copy or a stub: `apply` deletes them outright
+  (`quarantine.delete_categories`, default `[junk, empty-file, empty-dir]`; `[]` quarantines
+  everything). Safety: an "empty" file must still be zero bytes and an "empty" folder must
+  still hold no files, otherwise the item is quarantined after all. The manifest records
+  deleted entries (`op: delete`, no `to`); `restore` recreates empty files and folders and
+  counts deleted junk as "gone" (not an error); `quarantine list|show` and the UI show the
+  status `deleted` for junk-only batches; `purge` skips them. Console and UI summaries report
+  moved and deleted counts separately.
 - FR-43 ✅ **Stubs (owner request 2026-09-15, modelled on the owner's SVN notes).** For the
   configured categories (default: oversize, archive, distributive, duplicate, dir-duplicate;
   not junk or empty) a text file `<name>.removed.txt` is left where the item was. It names
@@ -206,7 +215,8 @@ folder-inspect scan <root...>
   Language: `-lang` / UI language (RU default); `quarantine.stub_texts` in the config
   replaces the reason paragraph per category with the owner's own wording. No hard links or
   symlinks are created (owner decision 2026-09-15). ❓ Optional Windows `.lnk` — only if asked.
-- FR-44 ✅ The tool never deletes user files through scan/apply. Permanent deletion exists only
+- FR-44 ✅ The tool never deletes user documents through scan/apply (junk and empty items
+  excepted — FR-42a). Permanent deletion of quarantined copies exists only
   as `quarantine purge`, which needs the explicit `-yes` flag (without it: preview + the exact
   command), deletes only paths inside the batch folder, marks the manifest `purged`, keeps it
   and the stubs as the record, and is refused a second time. Not available from the UI.
@@ -275,6 +285,8 @@ docs/                   ADRs, questionnaire, example config
   GitHub Releases on `v*` tags; `scripts/build.sh` shared by both.
 - ✅ `plan` from rules (2026-09-15): FR-41a — categories, duplicate keep policies, filters,
   dry-run and quiet modes; `Plan.SaveAs` for explicit -out paths.
+- ✅ v0.2.0 tagged 2026-09-15. Then: delete categories (FR-42a), "show in file manager" for
+  both folders of an overlapping pair, folders open in Explorer instead of being selected.
 - ⏳ Next: OS-locale detection, `**` globs.
 - ❓ Minor: more near-duplicate name patterns from practice; optional `.lnk` next to the stub.
 
