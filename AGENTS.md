@@ -7,9 +7,9 @@ in `AGENTS/` docs; repeatable procedures belong in skills under `.claude/skills/
 
 ## Project
 
-folder-inspect — utility that inspects a local folder tree (including git working copies) for very large files, archives, junk files and duplicates, and helps clean them up.
+folder-inspect — Go tool that inspects a *project document repository* (a folder tree of implementation-project documents, local or on a mounted share) for oversized files graded by kind, archives, junk, duplicates and near-duplicates; shows findings in a local web UI with CSV/XLSX/HTML export; cleans up via quarantine (restorable) and hard-link replacement of duplicates.
 
-Stack, interface and platform are **not chosen yet** — they are decided by the discovery questionnaire in `docs/discovery-questionnaire.md`. Do not start implementation before the questionnaire is answered (or its defaults explicitly accepted) and the choice is recorded as an ADR in `docs/adr/`.
+Not related to git in any way. Stack decision: `docs/adr/0001-stack-and-interface.md`. Contract: `AGENTS/SPEC.md`.
 
 ## Environment
 
@@ -112,38 +112,49 @@ Recording rules — keep these a habit:
 
 ## Project Rules
 
-Hard constraints and invariants this project must not violate. Fill in after the first iteration; keep each rule one line.
+Hard constraints and invariants this project must not violate. Keep each rule one line.
 
-<!-- Examples of the kind of rule that belongs here:
-- Do not delete files — move retired code to `deprecated/` (or `git mv`) so git history survives.
-- Library / framework lock-ins ("X is the only allowed library for Y").
-- Runtime / boundary invariants the agent must respect.
--->
-
-- —
+- The product must not depend on, detect, or assume git — the scanned "repositories" are document folders.
+- Read-only by default: no file-system change happens outside an explicit `apply` of a reviewed plan.
+- The tool never deletes user files directly; removal means quarantine with a restore manifest.
+- Never traverse symlinks/junctions out of a scan root; never modify system folders or the quarantine folder during a scan.
+- Scan results live in `report.json`; every presentation (console, UI, exports) is derived from it, not from a second scan.
+- Web UI assets are plain HTML/JS embedded with `embed`; no Node/npm build step in the toolchain.
+- Third-party Go modules only where the standard library clearly falls short (currently: YAML config, XLSX export).
 
 ## Stack & Commands
 
 Stack one-liner plus the commands an agent needs on day one. Keep the full cheat-sheet in `AGENTS/ENV.md`; here keep only the essentials.
 
+Stack: Go (latest stable), standard toolchain, single static binary per OS (Windows, Linux). Go is **not installed on the dev host yet** — see `AGENTS/ENV.md`.
+
 ```bash
-# install      — <how to install dependencies>
-# dev / run    — <how to start the app locally>
-# build        — <how to produce a production build>
-# test         — <how to run the test suite>
-# lint         — <how to lint / typecheck>
+# install      — go mod download
+# dev / run    — go run ./cmd/folder-inspect scan <root>
+# build        — go build -o dist/ ./cmd/folder-inspect
+# test         — go test ./...
+# lint         — go vet ./... && gofmt -l .   (gofmt -l must print nothing)
 ```
 
 ## Architecture
 
-Map of the codebase so an agent knows where things live. Fill in after the structure stabilizes.
+Intended layout (no code yet — see `AGENTS/SPEC.md` → Project structure for the full map):
 
 ```
-<top-level layout — key directories and their responsibility>
+cmd/folder-inspect/   CLI entry point and commands (scan, report, ui, plan, apply, restore)
+internal/scan/        walker + file index
+internal/detect/      detectors: size rules, archives, junk, duplicates, names, empty
+internal/report/      JSON model, console summary, CSV/XLSX/HTML exports
+internal/ui/          embedded web UI + localhost handlers
+internal/action/      plan, apply, quarantine, restore, hardlink
+internal/config/      YAML config, defaults, flag merge
+internal/i18n/        RU / EN messages
+testdata/             dirty-repository fixture generator
 ```
 
 ## Code Style
 
-- <language mode / formatter / linter conventions>
-- <naming, units, formatting rules that aren't obvious from the code>
+- `gofmt` formatting, `go vet` clean; standard Go naming; errors wrapped with `%w` and context.
+- Sizes are `int64` bytes internally; human-readable formatting only at presentation time (1 MB = 1 000 000 bytes? — decide in the first size-rule commit and record here).
+- Detectors are pure functions over the file index; no I/O besides hashing in the duplicate detector.
 - Match the conventions of surrounding code: comment density, naming, idiom.

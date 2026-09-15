@@ -13,7 +13,10 @@ If the project runs in more than one place (e.g. local dev + a server), split pe
 ## Tools
 
 - git 2.53 (Windows). No `gh` CLI installed.
-- Runtime for the project: not chosen yet (see `docs/discovery-questionnaire.md`, B2).
+- **Go: NOT installed** as of 2026-09-15 (stack chosen in ADR-0001). Install with
+  `winget install GoLang.Go` or `choco install golang` (chocolatey is present), then restart the shell.
+  Record the version here once installed.
+- Also present but not used by the project: Python 3.14, Node.js, PostgreSQL 18 client, Pandoc.
 
 ## Credentials & secrets
 
@@ -37,7 +40,11 @@ Split by environment when shells differ (e.g. PowerShell on dev, bash on prod).
 ### Dev
 
 ```
-<frequently used commands>
+go build ./...                      # build
+go test ./...                       # tests
+go vet ./... && gofmt -l .          # lint / format check (gofmt -l must print nothing)
+GOOS=linux GOARCH=amd64 go build -o dist/folder-inspect ./cmd/folder-inspect     # cross-compile (bash)
+$env:GOOS="linux"; go build -o dist/folder-inspect ./cmd/folder-inspect          # cross-compile (pwsh)
 ```
 
 ### Prod
