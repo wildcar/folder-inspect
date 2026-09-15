@@ -50,6 +50,14 @@ type Config struct {
 	Junk []string `yaml:"junk" json:"junk"`
 	// TopN limits the largest-files / heaviest-folders lists in the report.
 	TopN int `yaml:"top_n" json:"top_n"`
+	// Duplicates tunes content-based duplicate detection.
+	Duplicates DupConfig `yaml:"duplicates" json:"duplicates"`
+}
+
+// DupConfig tunes duplicate detection.
+type DupConfig struct {
+	Enabled bool     `yaml:"enabled" json:"enabled"`   // hash candidates and report groups
+	MinSize ByteSize `yaml:"min_size" json:"min_size"` // ignore files smaller than this
 }
 
 // Default returns the built-in configuration agreed in AGENTS/SPEC.md.
@@ -71,7 +79,8 @@ func Default() *Config {
 			"Thumbs.db", "desktop.ini", ".DS_Store", "._*", ".Spotlight-V100", ".Trashes",
 			"*.crdownload", "*.part",
 		},
-		TopN: 20,
+		TopN:       20,
+		Duplicates: DupConfig{Enabled: true, MinSize: 1 * KB},
 	}
 }
 

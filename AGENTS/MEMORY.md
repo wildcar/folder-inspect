@@ -20,6 +20,7 @@ MEMORY.md = durable facts/agreements; current state -> STATE.md; iteration log -
 - No hard links or symlinks anywhere in the product (2026-09-15); why: the owner wants a removed duplicate to leave a visible, human-readable trace pointing to the original by relative path.
 - Decisions that affect users' files (which duplicate stays) are made by a person in the UI, not by a heuristic; the tool only suggests.
 - The owner has no opinion on licensing — MIT was accepted on the agent's suggestion (2026-09-15); do not re-ask.
+- Outputs must never be overwritten silently (owner feedback 2026-09-15 after `report.json` was replaced by a second run); why: colleagues will run scans repeatedly and compare — a lost report is lost evidence. Rule now in AGENTS.md → Project Rules.
 
 ## Project facts
 
@@ -27,3 +28,4 @@ MEMORY.md = durable facts/agreements; current state -> STATE.md; iteration log -
 - Commit identity is set per-repo (`git config user.name/email`), because the host's global git identity is a different (work) account.
 - No `gh` CLI on the dev host; GitHub operations go through plain `git` or the web UI.
 - Domain: a "project repository" here is a folder of documents for an implementation project; files must be directly openable by link, which is why archives count as findings.
+- Real repositories seen 2026-09-15: two roots, ~33 GB / 4 579 files and ~24 GB / 1 283 files, no read errors; oversized findings are mostly video (mp4, mkv, avi, insv, lrv) and photos. Sizes of this order are the performance target.

@@ -23,7 +23,8 @@ func usage() {
 	fmt.Fprintf(os.Stderr, `folder-inspect %s
 
 Usage:
-  folder-inspect scan [options] <folder> [<folder>...]   scan folders, write report.json, print a summary
+  folder-inspect scan [options] <folder> [<folder>...]   scan folders, write report-<date>.json, print a summary
+  folder-inspect report [options] <report.json>          re-print a saved report or export it (csv, xlsx, html)
   folder-inspect fixture [options] <folder>              generate a demo "dirty repository" for trying the tool
   folder-inspect version                                 print the version
 
@@ -41,6 +42,8 @@ func main() {
 	switch os.Args[1] {
 	case "scan":
 		code = runScan(os.Args[2:])
+	case "report":
+		code = runReport(os.Args[2:])
 	case "fixture":
 		code = runFixture(os.Args[2:])
 	case "version", "-v", "--version":

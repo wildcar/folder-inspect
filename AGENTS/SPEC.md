@@ -25,8 +25,8 @@ Scale: tens of thousands of files per repository.
 ## Stack
 
 - Go (latest stable), standard toolchain; one static executable per OS (Windows, Linux).
-- Standard library for walking, hashing, JSON, HTTP; a small number of vetted third-party
-  modules where they clearly pay off (YAML config, XLSX export). See ADR-0001.
+- Standard library for walking, hashing, JSON, HTTP; third-party modules only where they
+  clearly pay off: `gopkg.in/yaml.v3` (config), `github.com/xuri/excelize/v2` (XLSX). See ADR-0001.
 - No database: the scan result is a JSON file. No network access. No auth.
 - Distribution: GitHub Releases.
 
@@ -102,28 +102,40 @@ folder-inspect scan <root...>
 - FR-18 ✅ Empty folders (only the top-most of a nested empty chain) and zero-size files.
 
 ### Detector: duplicates
-- FR-19 ⏳ Exact duplicates by content: group by size → hash first 64 KB → full SHA-256.
-  Across all scanned roots. Minimum size 1 KB (configurable).
+- FR-19 ✅ Exact duplicates by content: group by size → hash first 64 KB → full SHA-256 of
+  the survivors, hashing in parallel. Across all scanned roots. Minimum size 1 KB
+  (`duplicates.min_size`); `duplicates.enabled: false` or `-no-dups` skips it. Groups carry
+  a stable id (hash prefix), size, count, wasted bytes and members sorted by mtime.
 - FR-20 ⏳ Near-duplicates by name ("copy candidates"), reported separately and never
   auto-actionable unless content also matches. Patterns (case-insensitive, RU + EN):
   `Копия <name>`, `<name> - копия`, `<name> - копия (N)`, `Copy of <name>`, `<name> (N)`,
   `<name> - Copy`, `<name>_v2 / _v3 / _final / _старый / _old / _new / _новый`,
   `<name> (Восстановлен)` / `(Recovered)`. ❓ list to be refined with the owner.
-- FR-21 ⏳ For every duplicate group show the wasted size. The canonical file (the one that
-  stays) is **picked by the user in the web UI**; the UI pre-selects the oldest by
-  modification time as a suggestion. Nothing happens to a group without a pick.
+- FR-21 ⏳ For every duplicate group show the wasted size (✅ report, console, exports). The
+  canonical file (the one that stays) is **picked by the user in the web UI**; the report
+  already carries `suggested` = oldest by modification time, shown with `*`/★ everywhere.
+  Nothing happens to a group without a pick (⏳ UI).
 
 ### Reporting
-- FR-30 ✅ `report.json` (schema 1) — native result: tool/version, start/finish, roots, the
-  effective config, stats, per-category summary, all findings (path, rel, root, size, mtime,
-  category, rule, threshold, detail), top files/folders, errors, skipped paths. Group ids
-  arrive with duplicates.
+- FR-30 ✅ `report-<YYYY-MM-DD_HHMMSS>.json` (schema 2) — native result: tool/version,
+  start/finish, roots, the effective config, stats (incl. files/bytes hashed), per-category
+  summary (duplicates: groups / wasted bytes), all findings (path, rel, root, size, mtime,
+  category, rule, threshold, detail, group), duplicate groups, top files/folders, errors
+  (scan + hashing), skipped paths.
 - FR-31 ✅ Console summary after a scan: counts and sizes per category, first 10 findings per
-  category, top-10 files and folders, read errors, report path. `-quiet` suppresses it.
+  category, duplicate groups with members and the suggested original, top-10 files and
+  folders, read errors, files written. `-quiet` suppresses it. `report <json>` re-prints a
+  saved report (`-all` lists everything).
+- FR-35 ✅ **Nothing is overwritten silently.** The default report name carries the scan
+  timestamp; an explicit `-out` or export path that already exists is refused with a hint to
+  add `-force`. All output paths are checked before the scan starts.
 - FR-32 ⏳ Web UI (`folder-inspect ui`): localhost page in the default browser, findings by
   category, sort/filter/search, duplicate groups, tick boxes to assemble an action plan,
   export buttons. Embedded into the executable; no external resources.
-- FR-33 ⏳ Exports: CSV, XLSX, self-contained HTML.
+- FR-33 ✅ Exports: CSV (UTF-8 BOM, `;` for RU / `,` for EN, one row per finding), XLSX
+  (sheets: summary, findings with filters, duplicates, top files, top folders, errors),
+  self-contained HTML (inline CSS, no scripts, no external resources). Written by
+  `scan -export csv,xlsx,html` next to the JSON, or later by `report -format <fmt> <json>`.
 - FR-34 ✅ User-facing text in Russian (default) and English; `-lang ru|en`; auto-detection
   currently reads `LANG`/`LC_ALL`/`LANGUAGE` only (⏳ real OS locale on Windows).
 
@@ -164,10 +176,11 @@ folder-inspect scan <root...>
 ## Project structure
 
 ```
-cmd/folder-inspect/     entry point; cmd_scan.go, cmd_fixture.go (planned: report, ui, plan, apply, restore)
+cmd/folder-inspect/     entry point; cmd_scan.go, cmd_report.go, cmd_fixture.go (planned: ui, plan, apply, restore)
 internal/scan/          walker, file index with per-folder aggregates
-internal/detect/        detectors in one package: size.go, ext.go (archives, distributives), junk.go, empty.go (planned: dup.go, names.go)
-internal/report/        Report model + JSON I/O, console summary (planned: csv, xlsx, html)
+internal/detect/        detectors: size.go, ext.go (archives, distributives), junk.go, empty.go, dup.go (the only one with I/O) (planned: names.go)
+internal/report/        Report model + JSON I/O, console summary, overwrite policy, shared formatting
+internal/export/        csv.go, xlsx.go (excelize), html.go (html/template, self-contained)
 internal/config/        defaults, YAML loading, ByteSize
 internal/glob/          case-insensitive glob matching
 internal/i18n/          RU / EN message catalogs
@@ -187,7 +200,9 @@ docs/                   ADRs, questionnaire, example config
 - ✅ MVP slice 1 (2026-09-15): `scan` → `report.json` + RU/EN console summary with graded
   size rules, archives, distributives, junk, empty folders/files; YAML config; exclusions;
   `fixture` demo generator; unit + end-to-end tests.
-- ⏳ Slice 2: exact duplicates (FR-19, FR-21 data), exports CSV/XLSX/HTML (FR-33).
+- ✅ MVP slice 2 (2026-09-15): exact duplicates with suggested original (FR-19, FR-21 data),
+  exports CSV/XLSX/HTML (FR-33), `report` command, timestamped report names and overwrite
+  protection (FR-35). Verified on two real repositories (57 GB, ~5 900 files).
 - ⏳ Slice 3: web UI (FR-32), plan/apply/restore, quarantine, pointer stubs (FR-40…44).
 - ⏳ Then: near-duplicate names (FR-20), OS locale detection, `**` in globs.
 - ❓ Minor: more near-duplicate name patterns from practice; optional `.lnk` next to the stub.

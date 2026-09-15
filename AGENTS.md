@@ -119,6 +119,7 @@ Hard constraints and invariants this project must not violate. Keep each rule on
 - The tool never deletes user files directly; removal means quarantine with a restore manifest.
 - Never traverse symlinks/junctions out of a scan root; never modify system folders or the quarantine folder during a scan.
 - The product never creates hard links or symlinks; a removed duplicate leaves a human-readable pointer stub instead.
+- Nothing the tool writes may silently overwrite an existing file: default names carry a timestamp, explicit paths go through `report.CheckOverwrite` and need `-force`.
 - Scan results live in `report.json`; every presentation (console, UI, exports) is derived from it, not from a second scan.
 - Web UI assets are plain HTML/JS embedded with `embed`; no Node/npm build step in the toolchain.
 - Third-party Go modules only where the standard library clearly falls short (currently: YAML config, XLSX export).
@@ -127,11 +128,11 @@ Hard constraints and invariants this project must not violate. Keep each rule on
 
 Stack one-liner plus the commands an agent needs on day one. Keep the full cheat-sheet in `AGENTS/ENV.md`; here keep only the essentials.
 
-Stack: Go 1.27 (module `github.com/wildcar/folder-inspect`), standard toolchain, single static binary per OS (Windows, Linux). Only third-party module so far: `gopkg.in/yaml.v3`.
+Stack: Go 1.27 (module `github.com/wildcar/folder-inspect`), standard toolchain, single static binary per OS (Windows, Linux). Third-party modules: `gopkg.in/yaml.v3` (config), `github.com/xuri/excelize/v2` (XLSX export).
 
 ```bash
 # install      — go mod download
-# dev / run    — go run ./cmd/folder-inspect scan <root>          (also: fixture <empty-dir>, version)
+# dev / run    — go run ./cmd/folder-inspect scan <root>          (also: report <json>, fixture <empty-dir>, version)
 # build        — go build -o dist/folder-inspect.exe ./cmd/folder-inspect
 # test         — go test ./...
 # lint         — go vet ./... && gofmt -l .   (gofmt -l must print nothing)
@@ -140,13 +141,14 @@ Stack: Go 1.27 (module `github.com/wildcar/folder-inspect`), standard toolchain,
 
 ## Architecture
 
-Pipeline: `scan.Walk` → `detect.Run` → `report.Build` → `report.json` → console (later: web UI, exports, plan/apply).
+Pipeline: `scan.Walk` → `detect.Run` (+ `detect.Duplicates`, the only detector with I/O) → `report.Build` → `report-<ts>.json` → console / `export` (csv, xlsx, html) (later: web UI, plan/apply).
 
 ```
-cmd/folder-inspect/   CLI entry point; one file per command (cmd_scan.go, cmd_fixture.go); planned: report, ui, plan, apply, restore
+cmd/folder-inspect/   CLI entry point; one file per command (cmd_scan.go, cmd_report.go, cmd_fixture.go); planned: ui, plan, apply, restore
 internal/scan/        walker + file index with per-folder aggregates; never follows links; skips system dirs
-internal/detect/      pure detectors over the index: size.go (graded rules), ext.go (archives, distributives), junk.go, empty.go; planned: dup.go, names.go
-internal/report/      Report model (report.json, schema v1), console summary; planned: CSV/XLSX/HTML exports
+internal/detect/      detectors over the index: size.go (graded rules), ext.go (archives, distributives), junk.go, empty.go, dup.go (size → head hash → full hash, parallel); planned: names.go
+internal/report/      Report model (schema v2), console summary, overwrite policy (DefaultName, CheckOverwrite), shared formatting (HumanSize, Qualifier)
+internal/export/      csv.go, xlsx.go (excelize), html.go (html/template, self-contained page)
 internal/config/      defaults + YAML (.folder-inspect.yml), ByteSize with binary units
 internal/glob/        case-insensitive glob matching shared by scan and detect
 internal/i18n/        RU (default) / EN message catalogs; a test enforces key parity

@@ -5,9 +5,11 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/wildcar/folder-inspect/internal/config"
 	"github.com/wildcar/folder-inspect/internal/detect"
+	"github.com/wildcar/folder-inspect/internal/export"
 	"github.com/wildcar/folder-inspect/internal/i18n"
 	"github.com/wildcar/folder-inspect/internal/report"
 	"github.com/wildcar/folder-inspect/internal/scan"
@@ -24,10 +26,13 @@ func runScan(args []string) int {
 	fs.SetOutput(os.Stderr)
 	var (
 		cfgPath = fs.String("config", "", "config file (default: .folder-inspect.yml in the first folder, then in the home folder)")
-		out     = fs.String("out", "report.json", "where to write the JSON report")
+		out     = fs.String("out", "", "where to write the JSON report (default: report-<date>_<time>.json in the current folder)")
+		exports = fs.String("export", "", "also write these formats next to the report: csv, xlsx, html (comma-separated)")
+		force   = fs.Bool("force", false, "overwrite existing report/export files")
 		lang    = fs.String("lang", "", "console language: ru or en (default: from the OS locale)")
 		topN    = fs.Int("top", 0, "override top-N for the largest files / heaviest folders")
-		quiet   = fs.Bool("quiet", false, "do not print the summary, only write the report")
+		noDups  = fs.Bool("no-dups", false, "skip duplicate detection (no file contents are read)")
+		quiet   = fs.Bool("quiet", false, "do not print the summary, only write the files")
 		exclude multiFlag
 	)
 	fs.Var(&exclude, "exclude", "glob pattern to skip (repeatable); a pattern with '/' matches the relative path")
@@ -46,11 +51,35 @@ func runScan(args []string) int {
 	if *lang != "" {
 		i18n.Set(*lang)
 	}
-	*out = filepath.Clean(*out)
+
+	// Decide every output path up front so a long scan never ends in a
+	// refused write.
+	outPath := *out
+	if outPath == "" {
+		outPath = report.DefaultName(time.Now())
+	}
+	outPath = filepath.Clean(outPath)
+	if err := report.CheckOverwrite(outPath, *force); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		return exitError
+	}
+	formats, err := export.ParseList(*exports)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		return exitUsage
+	}
+	exportPaths := map[string]string{}
+	for _, f := range formats {
+		p := report.SiblingPath(outPath, f)
+		if err := report.CheckOverwrite(p, *force); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			return exitError
+		}
+		exportPaths[f] = p
+	}
 
 	cfg := config.Default()
 	if p, ok := config.Discover(*cfgPath, roots); ok {
-		var err error
 		if cfg, err = config.Load(p); err != nil {
 			fmt.Fprintln(os.Stderr, "config:", err)
 			return exitError
@@ -60,6 +89,9 @@ func runScan(args []string) int {
 	if *topN > 0 {
 		cfg.TopN = *topN
 	}
+	if *noDups {
+		cfg.Duplicates.Enabled = false
+	}
 
 	res, err := scan.Walk(roots, scan.Options{Exclude: cfg.Exclude})
 	if err != nil {
@@ -67,14 +99,29 @@ func runScan(args []string) int {
 		return exitError
 	}
 	findings := detect.Run(res, cfg)
-	rep := report.Build(res, findings, cfg, version)
+	var dups detect.DupResult
+	if cfg.Duplicates.Enabled {
+		dups = detect.Duplicates(res.Files, detect.DupOptions{MinSize: int64(cfg.Duplicates.MinSize)})
+		findings = append(findings, dups.Findings()...)
+		detect.Sort(findings)
+		res.Finished = time.Now() // the scan includes hashing
+	}
+	rep := report.Build(res, findings, dups, cfg, version)
 
-	if err := rep.WriteJSON(*out); err != nil {
+	if err := rep.WriteJSON(outPath); err != nil {
 		fmt.Fprintln(os.Stderr, "report:", err)
 		return exitError
 	}
+	var written []string
+	for _, f := range formats {
+		if err := export.WriteFile(rep, f, exportPaths[f]); err != nil {
+			fmt.Fprintf(os.Stderr, "export %s: %v\n", f, err)
+			return exitError
+		}
+		written = append(written, exportPaths[f])
+	}
 	if !*quiet {
-		rep.PrintConsole(os.Stdout, report.ConsoleOptions{ReportPath: *out})
+		rep.PrintConsole(os.Stdout, report.ConsoleOptions{ReportPath: outPath, Exports: written})
 	}
 	if rep.Stats.Errors > 0 {
 		return exitError

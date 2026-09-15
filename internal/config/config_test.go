@@ -80,6 +80,21 @@ top_n: 5
 	if len(cfg.Archives) != len(Default().Archives) {
 		t.Errorf("archives should keep defaults when absent")
 	}
+	if !cfg.Duplicates.Enabled || cfg.Duplicates.MinSize != KB {
+		t.Errorf("duplicates defaults must survive when the key is absent: %+v", cfg.Duplicates)
+	}
+}
+
+func TestLoadDuplicatesSection(t *testing.T) {
+	p := filepath.Join(t.TempDir(), FileName)
+	os.WriteFile(p, []byte("duplicates:\n  enabled: false\n  min_size: 10MB\n"), 0o644)
+	cfg, err := Load(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Duplicates.Enabled || cfg.Duplicates.MinSize != 10*MB {
+		t.Errorf("duplicates section not applied: %+v", cfg.Duplicates)
+	}
 }
 
 func TestLoadRejectsUnknownKeyAndBadRule(t *testing.T) {

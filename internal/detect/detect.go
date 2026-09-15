@@ -19,13 +19,14 @@ const (
 	Oversize     Category = "oversize"
 	Archive      Category = "archive"
 	Distributive Category = "distributive"
+	Duplicate    Category = "duplicate"
 	Junk         Category = "junk"
 	EmptyDir     Category = "empty-dir"
 	EmptyFile    Category = "empty-file"
 )
 
 // Categories in display order.
-var Categories = []Category{Oversize, Archive, Distributive, Junk, EmptyDir, EmptyFile}
+var Categories = []Category{Oversize, Archive, Distributive, Duplicate, Junk, EmptyDir, EmptyFile}
 
 // Finding is one flagged file or folder.
 type Finding struct {
@@ -39,6 +40,8 @@ type Finding struct {
 	IsDir    bool      `json:"is_dir,omitempty"`
 	// Threshold is the size limit that was exceeded (oversize only).
 	Threshold int64 `json:"threshold,omitempty"`
+	// Group links the copies of one duplicate group (duplicate only).
+	Group string `json:"group,omitempty"`
 	// Detail is a machine-readable qualifier, translated for display via
 	// the i18n key "detail.<value>" (e.g. "empty", "no-files").
 	Detail string `json:"detail,omitempty"`
@@ -56,8 +59,9 @@ func Ext(name string) string {
 	return strings.ToLower(strings.TrimPrefix(filepath.Ext(name), "."))
 }
 
-// Run applies every detector and returns findings sorted by category
-// (display order), then size descending, then path.
+// Run applies every I/O-free detector and returns findings sorted by
+// category (display order), then size descending, then path. Duplicates
+// need file access and are run separately (see Duplicates).
 func Run(res *scan.Result, cfg *config.Config) []Finding {
 	var out []Finding
 	out = append(out, Oversized(res.Files, cfg.SizeRules)...)

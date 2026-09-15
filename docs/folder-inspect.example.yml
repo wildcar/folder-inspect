@@ -57,3 +57,9 @@ junk:
 
 # How many largest files / heaviest folders to keep in the report.
 top_n: 20
+
+# Exact duplicates by content. Only files with an identical size are
+# hashed (first 64 KB, then in full), so this is cheap even on large trees.
+duplicates:
+  enabled: true
+  min_size: 1KB      # ignore tiny files

@@ -70,10 +70,16 @@ func TestEndToEndScan(t *testing.T) {
 		t.Fatalf("indexed %d files, fixture has %d", len(res.Files), len(Files))
 	}
 	findings := detect.Run(res, cfg)
-	rep := report.Build(res, findings, cfg, "test")
+	dups := detect.Duplicates(res.Files, detect.DupOptions{MinSize: int64(cfg.Duplicates.MinSize)})
+	findings = append(findings, dups.Findings()...)
+	detect.Sort(findings)
+	rep := report.Build(res, findings, dups, cfg, "test")
 
+	if len(dups.Groups) != 1 || dups.Groups[0].Count != 3 || dups.Groups[0].Wasted != 8*1024 {
+		t.Errorf("want one group of 3 contract copies wasting 8 KB, got %+v", dups.Groups)
+	}
 	want := map[detect.Category]int{
-		detect.Oversize: 5, detect.Archive: 1, detect.Distributive: 1,
+		detect.Oversize: 5, detect.Archive: 1, detect.Distributive: 1, detect.Duplicate: 1,
 		detect.Junk: 4, detect.EmptyDir: 2, detect.EmptyFile: 1,
 	}
 	got := map[detect.Category]int{}
@@ -119,6 +125,9 @@ func TestEndToEndScan(t *testing.T) {
 	if back.Schema != report.SchemaVersion || len(back.Findings) != len(findings) || back.Stats.Files != len(Files) {
 		t.Errorf("round trip lost data: %+v", back.Stats)
 	}
+	if len(back.Duplicates) != 1 || back.Duplicates[0].Suggested == "" || back.Stats.Hashed == 0 {
+		t.Errorf("duplicates lost in round trip: %+v", back.Duplicates)
+	}
 	if back.Config.SizeRules[0].Threshold != cfg.SizeRules[0].Threshold {
 		t.Error("config thresholds must survive the JSON round trip")
 	}
@@ -136,6 +145,9 @@ func TestEndToEndScan(t *testing.T) {
 		}
 		if !strings.Contains(s, "Встреча 2026-03-01.mp4") || !strings.Contains(s, out) {
 			t.Errorf("[%s] console lacks the video or report path:\n%s", lang, s)
+		}
+		if !strings.Contains(s, "Копия Договор.docx") || !strings.Contains(s, "* ") {
+			t.Errorf("[%s] console lacks the duplicate group with a suggested original:\n%s", lang, s)
 		}
 	}
 	i18n.Set(i18n.RU)

@@ -4,6 +4,13 @@ Newest first. Each entry ≤5 lines using the format defined in `AGENTS.md`.
 
 ---
 
+## 2026-09-15 · MVP slice 2: duplicates, exports, no silent overwrite
+- What: `detect.Duplicates` (size → 64 KB head hash → full SHA-256, parallel; groups with suggested original), report schema 2 with duplicate groups and hashing stats, `internal/export` (CSV with BOM and locale separator, XLSX via excelize, self-contained HTML), `report` command, `scan -export`, timestamped default report name + `-force` overwrite guard, `-no-dups`, `duplicates:` config section.
+- Why: owner asked for slice 2 and flagged that a second run silently overwrote `report.json`.
+- Files: internal/detect/dup.go, internal/export/*, internal/report/*, cmd/folder-inspect/cmd_report.go, cmd/folder-inspect/cmd_scan.go, internal/config/config.go, internal/i18n/i18n.go, AGENTS/SPEC.md, AGENTS.md, README.md, docs/folder-inspect.example.yml
+- Fixes-on-the-fly: scan duration now includes hashing; BOM written as bytes (a literal BOM inside a Go string does not compile).
+- Next: slice 3 — embedded web UI, then plan/apply/restore with quarantine and pointer stubs.
+
 ## 2026-09-15 · Go scaffold + MVP slice 1: scan → report.json + console
 - What: Go module, walker (no link following, system dirs skipped, folder aggregates), detectors (graded size rules, archives, distributives, junk, empty), YAML config with ByteSize, RU/EN i18n, report.json schema 1, console summary, `fixture` demo generator, unit + end-to-end tests; README/AGENTS updated with real commands and layout.
 - Why: Go installed by the owner (1.27.1, per-user); first usable slice of the contract.

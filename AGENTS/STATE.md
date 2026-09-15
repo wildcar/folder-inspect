@@ -13,29 +13,32 @@ Contract: `AGENTS/SPEC.md` v0.2.
 
 ## Now
 
-- MVP slice 1 shipped 2026-09-15: `folder-inspect scan <root...>` writes `report.json` and prints
-  a RU/EN summary; detectors: size rules, archives, distributives, junk, empty; YAML config;
-  `fixture` command generates a demo repository. Build/vet/gofmt/tests green (Go 1.27.1).
-- Verified manually on the generated fixture (~170 MB) in both languages, with and without `-exclude`.
-- Not yet tried on a real project repository or a network share.
+- MVP slice 2 shipped 2026-09-15: exact duplicates (size → head hash → full hash, parallel),
+  exports CSV/XLSX/HTML, `report` command, timestamped report names, overwrite protection.
+- Verified on the owner's two real repositories together (57 GB, 5 862 files): 693 candidate
+  files / 582 MB hashed, 156 duplicate groups wasting 294 MB, no read errors; XLSX and HTML
+  exports open. Build/vet/gofmt/tests green.
+- Not yet tried on a network share (UNC path).
 
 ## Next
 
-1. Slice 2a — exact duplicates (`internal/detect/dup.go`): size → 64 KB head hash → full SHA-256,
-   parallel hashing of candidates only, groups with wasted size in the report and console.
-2. Slice 2b — exports: CSV, XLSX (excelize), self-contained HTML; `folder-inspect report <report.json> -format …`.
-3. Slice 3 — embedded web UI (`ui` command) with canonical-file pick per duplicate group;
-   `plan` / `apply --dry-run` / `apply` / `restore`; quarantine + pointer stubs.
-4. Then: near-duplicate names, Windows OS-locale detection, `**` in globs, GitHub Releases build.
-5. Ask the owner to run `scan` on a real repository and share the console output (not the paths if sensitive).
+1. Slice 3a — embedded web UI (`ui` command): serve `report.json` on localhost, open the browser;
+   findings by category with sort/filter/search, duplicate groups with a radio for the original
+   (pre-selected: suggested), checkboxes → action plan; export buttons.
+2. Slice 3b — `plan` / `apply --dry-run` / `apply` / `restore`: quarantine under
+   `<root>/.folder-inspect/quarantine/<ts>/`, manifest, pointer stubs `<name>.duplicate.txt`.
+3. Near-duplicate names (FR-20), Windows OS-locale detection, `**` in globs.
+4. GitHub Actions: build + test on push, release binaries for windows/amd64 and linux/amd64 on tag.
 
 ## Open questions
 
 - Near-duplicate name patterns — extend from practice as they come up (FR-20).
 - Optional Windows `.lnk` next to the pointer stub — only if colleagues ask (FR-43).
-- Should the console show paths relative to the root (current) or absolute when several roots are scanned?
+- Console shows paths relative to the root; with several roots this can be ambiguous — the UI
+  and exports show absolute paths. Keep or switch the console to absolute when roots > 1?
+- Should `scan` without `-out` write into the current folder (now) or into `<root>/.folder-inspect/reports/`?
 
 ## Deferred
 
-- No CI yet (GitHub Actions for build/test/release) — add once slice 2 lands.
+- No CI yet (GitHub Actions for build/test/release).
 - `**` glob support in exclusions and junk patterns.
