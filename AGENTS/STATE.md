@@ -8,32 +8,35 @@ the live picture here; push detail into `AGENTS/SPEC.md` (the contract) and `AGE
 
 Build folder-inspect: a Go tool that finds oversized files (graded by kind), archives and
 distributives, junk, duplicate files and folders in project document repositories, shows them
-in a local web UI with exports, and cleans up via quarantine with pointer stubs.
-Contract: `AGENTS/SPEC.md` v0.2.
+in a local web UI with exports, and cleans up via quarantine with explanatory stubs.
+Contract: `AGENTS/SPEC.md` v0.2 — all MVP requirements FR-1…FR-45 are implemented except FR-20
+(near-duplicate names) and the rule-based `plan` command.
 
 ## Now
 
-- Slice 3a shipped 2026-09-15: identical-folder groups and overlapping-folder pairs; embedded
-  web UI (`ui` command) with category views, duplicate groups with original pick, plan saving,
-  exports, RU/EN; reports/exports/plans under `<root>/.folder-inspect/reports/`.
-- Verified in the browser on the demo fixture: summary, duplicate groups, "select copies" →
-  plan of 2 items saved as `plan-<ts>.json`. Build/vet/gofmt/tests green.
-- Not yet run on the owner's real repositories since folder duplicates were added.
+- Slice 3b shipped 2026-09-15: `apply` (dry-run, dated quarantine batches with manifest,
+  duplicate re-verification), `restore`, per-file stubs `<name>.removed.txt` with reasons by
+  category and configurable texts, Rescan and Apply/Check buttons in the UI, `pipeline` package.
+- Verified end to end on the demo fixture: UI → plan (archive, distributive, 2 duplicate
+  copies) → "Check plan" → CLI `apply` → 4 moved, 4 stubs, manifest → UI Rescan reflects it →
+  CLI `restore` → everything back, stubs removed, second restore is a no-op.
+- Build/vet/gofmt/tests green (11 packages). Not yet applied on the owner's real repositories.
 
 ## Next
 
-1. Slice 3b — `apply`: read `plan-<ts>.json`, `--dry-run` listing, then move each path to
-   `<root>/.folder-inspect/quarantine/<ts>/<relative path>` with a manifest; pointer stub
-   `<name>.duplicate.txt` for `quarantine-duplicate` / `quarantine-dir`; `restore <manifest>`.
-2. UI: button "apply" is out of scope for now (apply stays a CLI step the user runs after review).
-3. Near-duplicate names (FR-20), Windows OS-locale detection, `**` in globs.
-4. GitHub Actions: build + test on push, release binaries on tag.
+1. Ask the owner to try the full loop on a real repository (scan → ui → apply → restore) and
+   review the stub wording; adjust `stub.*` texts or add `quarantine.stub_texts` examples.
+2. Near-duplicate names (FR-20): «Копия …», «… (2)», «Copy of …», `_v2/_final` as a soft category.
+3. `quarantine` command: list batches, show what is inside, empty a batch after confirmation (FR-44).
+4. GitHub Actions: build + test on push, release binaries (windows/amd64, linux/amd64) on tag.
+5. Smaller: Windows OS-locale detection, `**` globs, `plan` from rules ("all junk").
 
 ## Open questions
 
-- Should `ui` offer a "rescan" button (re-run the scan from the browser)? Currently CLI only.
-- Overlap pairs: is 50 % / 2 files a good default on real data? Check on the owner's repositories.
-- Console paths relative to root vs. absolute with several roots (UI and exports are absolute).
+- Stub file name: `<name>.removed.txt` (current) vs. the owner's per-folder notes — keep per file
+  as requested; a per-folder summary note could be added later.
+- Should `apply` from the UI require typing the number of items instead of a confirm dialog?
+- Overlap thresholds (50 % / 2 files) on real data — 27 pairs looked plausible; revisit after use.
 
 ## Deferred
 

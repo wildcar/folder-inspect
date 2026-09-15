@@ -151,8 +151,10 @@ folder-inspect scan <root...>
   page (plain HTML/JS/CSS via `embed`, no external resources). Shows summary, every category
   with sort/filter and tick boxes, duplicate file and folder groups with a radio for the
   original and ticks for copies, overlap pairs, top lists, errors; exports CSV/XLSX/HTML;
-  RU/EN switch; "show in file manager" for any path inside the roots. The UI changes nothing
-  on disk: ticks become an action plan saved via `POST /api/plan`.
+  RU/EN switch; "show in file manager" for any path inside the roots; Rescan. Ticks become
+  an action plan: "Save plan" (`POST /api/plan`), "Check plan" (dry run) and "Apply plan"
+  (confirmation dialog → `POST /api/apply` → result screen with manifest and restore command
+  → automatic rescan).
 - FR-33 ✅ Exports: CSV (UTF-8 BOM, `;` for RU / `,` for EN, one row per finding), XLSX
   (sheets: summary, findings with filters, duplicates, top files, top folders, errors),
   self-contained HTML (inline CSS, no scripts, no external resources). Written by
@@ -161,34 +163,39 @@ folder-inspect scan <root...>
   currently reads `LANG`/`LC_ALL`/`LANGUAGE` only (⏳ real OS locale on Windows).
 
 ### Actions
-- FR-40 ⏳ Read-only by default. Any change to the file system happens only through
-  `apply` on a plan the user has reviewed.
-- FR-41 ⏳ Plan: ✅ the UI saves `plan-<ts>.json` (schema 1) next to the report — roots, the
+- FR-40 ✅ Read-only by default. Any change to the file system happens only through
+  `apply` (CLI) or the UI's "Apply plan" button after a confirmation dialog, always on a
+  plan the user assembled.
+- FR-41 ✅ Plan: the UI saves `plan-<ts>.json` (schema 1) next to the report — roots, the
   source report, and actions `quarantine` (any finding), `quarantine-duplicate` (copy +
-  original), `quarantine-dir` (folder copy + original folder); validated server-side: every
-  path inside a root, never a root itself, originals never quarantined. ⏳ `plan` from rules
-  ("all junk"), `apply --dry-run`, `apply`.
-- FR-42 ⏳ Quarantine: move a file to `<quarantine>/<YYYY-MM-DD_HHMM>/<relative path>` with a
-  manifest; `restore` puts files back. Quarantine folder: `<root>/.folder-inspect/quarantine`
-  (overridable in config).
-- FR-43 ⏳ Removing a duplicate = move it to quarantine **and leave a pointer stub** in its
-  place: a small text file `<original name>.duplicate.txt` next to where the file was, saying
-  that the duplicate was removed and where the kept original is, as a path **relative to the
-  stub's folder**. Contents (RU/EN by locale): tool name, date, relative path to the
-  original, quarantine location, SHA-256. Example:
-
-  ```
-  Дубликат удалён инструментом folder-inspect, 2026-09-15 14:02.
-  Оригинал: ..\..\Проект X\Договоры\Договор.docx
-  Копия перемещена в карантин: .folder-inspect\quarantine\2026-09-15_1402\Проект Y\Договор.docx
-  SHA-256: 3f2a…
-  ```
-
-  `restore` removes the stub when it brings the file back. No hard links or symlinks are
-  created (owner decision 2026-09-15). ❓ Optionally also a Windows `.lnk` shortcut to the
-  original — later, if colleagues ask for "double-click opens the original".
-- FR-44 ⏳ The tool never deletes user files directly. Emptying the quarantine is an explicit
-  separate command with confirmation.
+  original), `quarantine-dir` (folder copy + original folder); validated: every path inside
+  a root, never a root itself, originals never quarantined. `apply -dry-run` / the UI's
+  "Check plan" lists what would move without touching the disk. ⏳ `plan` from rules
+  ("all junk") without the UI.
+- FR-42 ✅ Quarantine: `apply` moves every planned item to
+  `<root>/<quarantine.dir>/<YYYY-MM-DD_HHMMSS>/<relative path>` (default dir
+  `.folder-inspect/quarantine`, one batch folder per root per run, never reused) and writes
+  `manifest.json` there. Before moving a duplicate the copy is re-verified against its
+  original (size + SHA-256; folders by full signature) — a missing or changed original leaves
+  the copy in place and is reported. Symlinks/junctions are never moved. `restore <manifest |
+  batch folder | root>` brings entries back (skipping occupied paths), removes their stubs and
+  marks them restored in the manifest; the manifest stays as the record.
+- FR-43 ✅ **Stubs (owner request 2026-09-15, modelled on the owner's SVN notes).** For the
+  configured categories (default: oversize, archive, distributive, duplicate, dir-duplicate;
+  not junk or empty) a text file `<name>.removed.txt` is left where the item was. It names
+  the removed file/folder and the date, gives the reason by category — duplicate (with the
+  original by **relative path**), identical folder, archive ("old versions live in the change
+  history; the repository is for plain documents"), distributive and video ("inappropriate
+  place to store; use links to official sources or cloud storage"), oversized (size and
+  threshold) — then the quarantine location (relative) and the exact `restore` command.
+  Language: `-lang` / UI language (RU default); `quarantine.stub_texts` in the config
+  replaces the reason paragraph per category with the owner's own wording. No hard links or
+  symlinks are created (owner decision 2026-09-15). ❓ Optional Windows `.lnk` — only if asked.
+- FR-44 ✅ The tool never deletes user files. ⏳ Emptying the quarantine is an explicit separate
+  command with confirmation (not built yet; today the batch folder is removed by hand).
+- FR-45 ✅ Rescan from the UI: "Rescan" re-runs the pipeline with the report's effective config
+  (same roots, thresholds, exclusions), saves a new report in the reports folder and switches
+  to it; after a real apply the UI rescans automatically.
 
 ### Non-functional
 - NFR-1 ⏳ Tens of thousands of files scan in well under a minute on a local SSD; hashing is
@@ -205,8 +212,9 @@ internal/scan/          walker, file index with per-folder aggregates
 internal/detect/        detectors: size.go, ext.go (archives, distributives), junk.go, empty.go, dup.go (the only one with I/O) (planned: names.go)
 internal/report/        Report model + JSON I/O, console summary, overwrite policy, shared formatting
 internal/export/        csv.go, xlsx.go (excelize), html.go (html/template, self-contained)
-internal/ui/            localhost server (server.go: /api/report, /api/export, /api/plan, /api/reveal) + static/ (index.html, app.js, style.css, embedded)
-internal/action/        plan.go: Plan / Action model, validation, plan-<ts>.json (planned: apply, quarantine, restore, stubs)
+internal/pipeline/      Run(roots, cfg): walk → detectors → duplicates → folder duplicates → report; used by scan and the UI's rescan
+internal/ui/            localhost server (server.go: /api/report, /api/export, /api/plan, /api/reveal, /api/rescan, /api/apply) + static/ (index.html, app.js, style.css, embedded)
+internal/action/        plan.go (Plan/Action, validation, plan-<ts>.json), apply.go (quarantine batches, manifest, re-verification), stub.go (<name>.removed.txt texts), restore.go, options.go (config → ApplyOptions)
 internal/config/        defaults, YAML loading, ByteSize
 internal/glob/          case-insensitive glob matching
 internal/i18n/          RU / EN message catalogs
@@ -230,7 +238,11 @@ docs/                   ADRs, questionnaire, example config
 - ✅ Slice 3a (2026-09-15): duplicate folders — identical groups and overlapping pairs
   (FR-23, FR-24); embedded web UI with original pick and plan saving (FR-32, FR-41 plan part);
   reports under `<root>/.folder-inspect/reports/` (FR-36).
-- ⏳ Slice 3b: `apply --dry-run` / `apply` / `restore`, quarantine, pointer stubs (FR-40, 42–44).
+- ✅ Slice 3b (2026-09-15): `apply` (dry-run, quarantine batches with manifest, duplicate
+  re-verification), `restore`, per-file stubs with category reasons and custom texts, Rescan
+  and Apply from the UI (FR-40–45).
+- ⏳ Next: near-duplicate names (FR-20), quarantine listing/emptying command, `plan` from
+  rules, OS-locale detection, `**` globs, CI and releases.
 - ⏳ Then: near-duplicate names (FR-20), OS locale detection, `**` in globs.
 - ❓ Minor: more near-duplicate name patterns from practice; optional `.lnk` next to the stub.
 

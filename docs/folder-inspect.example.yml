@@ -72,3 +72,18 @@ folder_duplicates:
   enabled: true
   min_overlap: 0.5   # 50 % of the smaller folder
   min_files: 2       # at least this many shared files
+
+# Extensions explained as "video" in stubs (they fall under the "huge" size rule).
+videos: [mp4, mkv, avi, mov, wmv, m4v, mpg, mpeg, webm, 3gp, insv, lrv, m4a, mp3, wav, flac]
+
+# Clean-up (apply). Files are never deleted: they move into the quarantine
+# folder inside the scanned root, one dated batch per run, with a manifest
+# that `restore` uses to bring everything back.
+quarantine:
+  dir: .folder-inspect/quarantine   # relative to the scanned root
+  stubs: true                       # leave "<name>.removed.txt" where a file was
+  stub_categories: [oversize, archive, distributive, duplicate, dir-duplicate]
+  # Optional: your own reason text per category (replaces the built-in paragraph).
+  # stub_texts:
+  #   archive: "Old versions are available in the change history; archives are not stored here."
+  #   distributive: "Distributives were removed. Use links to official sources or cloud storage."

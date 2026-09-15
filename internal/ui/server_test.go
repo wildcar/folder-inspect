@@ -144,6 +144,91 @@ func TestPlanEndpoint(t *testing.T) {
 	}
 }
 
+func TestRescanEndpoint(t *testing.T) {
+	s, _ := newServer(t)
+	ts := httptest.NewServer(s.Handler())
+	defer ts.Close()
+	before := s.ReportPath
+	if resp, _ := http.Get(ts.URL + "/api/rescan"); resp.StatusCode != 405 {
+		t.Errorf("GET rescan: %d", resp.StatusCode)
+	}
+	resp, err := http.Post(ts.URL+"/api/rescan", "application/json", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, _ := readAll(resp)
+	if resp.StatusCode != 200 {
+		t.Fatalf("rescan: %d %s", resp.StatusCode, body)
+	}
+	var rr rescanResponse
+	json.Unmarshal([]byte(body), &rr)
+	if rr.ReportPath == before || !strings.HasPrefix(rr.ReportPath, s.PlanDir) || rr.Files != len(fixture.Files) {
+		t.Errorf("rescan response: %+v (before %s)", rr, before)
+	}
+	if s.ReportPath != rr.ReportPath || !exists(rr.ReportPath) {
+		t.Error("server must switch to the new report on disk")
+	}
+	// the served report is the new one
+	r2, _ := http.Get(ts.URL + "/api/report")
+	var served reportResponse
+	json.NewDecoder(r2.Body).Decode(&served)
+	if served.ReportPath != rr.ReportPath {
+		t.Error("/api/report must serve the rescanned report")
+	}
+}
+
+func TestApplyEndpoint(t *testing.T) {
+	s, root := newServer(t)
+	ts := httptest.NewServer(s.Handler())
+	defer ts.Close()
+	post := func(body any) (int, applyResponse, string) {
+		b, _ := json.Marshal(body)
+		resp, err := http.Post(ts.URL+"/api/apply", "application/json", bytes.NewReader(b))
+		if err != nil {
+			t.Fatal(err)
+		}
+		txt, _ := readAll(resp)
+		var ar applyResponse
+		json.Unmarshal([]byte(txt), &ar)
+		return resp.StatusCode, ar, txt
+	}
+	junk := filepath.Join(root, "Проект A", "Thumbs.db")
+	archive := filepath.Join(root, "Проект B", "Старое", "Архив проекта 2024.zip")
+	actions := []action.Action{
+		{Op: action.OpQuarantine, Path: junk, Category: "junk", Size: 2048},
+		{Op: action.OpQuarantine, Path: archive, Category: "archive", Size: 16384},
+	}
+	// dry run: reported, nothing moved, no plan saved
+	code, dry, txt := post(applyRequest{Actions: actions, DryRun: true, Lang: "ru"})
+	if code != 200 || !dry.DryRun || dry.Moved != 2 || dry.Plan != "" || len(dry.Entries) != 2 {
+		t.Fatalf("dry run: %d %s", code, txt)
+	}
+	if !exists(junk) || !exists(archive) {
+		t.Fatal("dry run must not move anything")
+	}
+	// real run
+	code, real, txt := post(applyRequest{Actions: actions, DryRun: false, Lang: "ru"})
+	if code != 200 || real.Moved != 2 || real.Stubs != 1 || len(real.Manifests) != 1 || real.Plan == "" {
+		t.Fatalf("apply: %d %s", code, txt)
+	}
+	if exists(junk) || exists(archive) || !exists(archive+".removed.txt") || exists(junk+".removed.txt") {
+		t.Error("files must be quarantined; only the archive gets a stub")
+	}
+	if !strings.HasPrefix(real.Manifests[0], filepath.Join(root, ".folder-inspect", "quarantine")) || !exists(real.Manifests[0]) {
+		t.Errorf("manifest: %v", real.Manifests)
+	}
+	if !exists(real.Plan) {
+		t.Error("plan must be saved for a real apply")
+	}
+	// outside path refused
+	code, _, _ = post(applyRequest{Actions: []action.Action{{Op: action.OpQuarantine, Path: filepath.Join(t.TempDir(), "x")}}})
+	if code != 403 {
+		t.Errorf("outside path: %d", code)
+	}
+}
+
+func exists(p string) bool { _, err := os.Lstat(p); return err == nil }
+
 func TestRevealRefusesOutside(t *testing.T) {
 	s, _ := newServer(t)
 	ts := httptest.NewServer(s.Handler())

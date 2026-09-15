@@ -8,11 +8,10 @@ import (
 	"time"
 
 	"github.com/wildcar/folder-inspect/internal/config"
-	"github.com/wildcar/folder-inspect/internal/detect"
 	"github.com/wildcar/folder-inspect/internal/export"
 	"github.com/wildcar/folder-inspect/internal/i18n"
+	"github.com/wildcar/folder-inspect/internal/pipeline"
 	"github.com/wildcar/folder-inspect/internal/report"
-	"github.com/wildcar/folder-inspect/internal/scan"
 )
 
 // multiFlag collects a repeatable string flag.
@@ -93,27 +92,11 @@ func runScan(args []string) int {
 		cfg.Duplicates.Enabled = false
 	}
 
-	res, err := scan.Walk(roots, scan.Options{Exclude: cfg.Exclude})
+	rep, err := pipeline.Run(roots, cfg, version)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "scan:", err)
 		return exitError
 	}
-	findings := detect.Run(res, cfg)
-	var dups detect.DupResult
-	var dirs detect.DirDupResult
-	if cfg.Duplicates.Enabled {
-		dups = detect.Duplicates(res.Files, detect.DupOptions{MinSize: int64(cfg.Duplicates.MinSize)})
-		findings = append(findings, dups.Findings()...)
-		if cfg.FolderDuplicates.Enabled {
-			dirs = detect.DuplicateDirs(res, dups, detect.DirDupOptions{
-				MinOverlap: cfg.FolderDuplicates.MinOverlap, MinFiles: cfg.FolderDuplicates.MinFiles,
-			})
-			findings = append(findings, dirs.Findings()...)
-		}
-		detect.Sort(findings)
-		res.Finished = time.Now() // the scan includes hashing
-	}
-	rep := report.Build(res, findings, dups, dirs, cfg, version)
 
 	if err := rep.WriteJSON(outPath); err != nil {
 		fmt.Fprintln(os.Stderr, "report:", err)

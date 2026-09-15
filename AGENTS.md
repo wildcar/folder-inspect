@@ -116,7 +116,8 @@ Hard constraints and invariants this project must not violate. Keep each rule on
 
 - The product must not depend on, detect, or assume git — the scanned "repositories" are document folders.
 - Read-only by default: no file-system change happens outside an explicit `apply` of a reviewed plan.
-- The tool never deletes user files directly; removal means quarantine with a restore manifest.
+- The tool never deletes user files directly; removal means quarantine with a restore manifest. `apply` re-verifies a duplicate against its original right before moving it.
+- Stub texts (`stub.*` keys) are user-facing documents left in the owner's repositories: keep them calm, factual, and free of tool jargon; the owner's own texts from the config win.
 - Never traverse symlinks/junctions out of a scan root; never modify system folders or the quarantine folder during a scan.
 - The product never creates hard links or symlinks; a removed duplicate leaves a human-readable pointer stub instead.
 - Nothing the tool writes may silently overwrite an existing file: default names carry a timestamp, explicit paths go through `report.CheckOverwrite` and need `-force`.
@@ -132,7 +133,7 @@ Stack: Go 1.27 (module `github.com/wildcar/folder-inspect`), standard toolchain,
 
 ```bash
 # install      — go mod download
-# dev / run    — go run ./cmd/folder-inspect scan <root>          (also: ui <root|json>, report <json>, fixture <empty-dir>, version)
+# dev / run    — go run ./cmd/folder-inspect scan <root>          (also: ui <root|json>, report <json>, apply [-dry-run] <plan>, restore <manifest|root>, fixture <empty-dir>, version)
 # build        — go build -o dist/folder-inspect.exe ./cmd/folder-inspect
 # test         — go test ./...
 # lint         — go vet ./... && gofmt -l .   (gofmt -l must print nothing)
@@ -141,16 +142,17 @@ Stack: Go 1.27 (module `github.com/wildcar/folder-inspect`), standard toolchain,
 
 ## Architecture
 
-Pipeline: `scan.Walk` → `detect.Run` + `detect.Duplicates` (the only detector with I/O) + `detect.DuplicateDirs` → `report.Build` → `<root>/.folder-inspect/reports/report-<ts>.json` → console / `export` (csv, xlsx, html) / `ui` (browser) → `plan-<ts>.json` (later: apply).
+Pipeline: `pipeline.Run` = `scan.Walk` → `detect.Run` + `detect.Duplicates` (the only detector with I/O) + `detect.DuplicateDirs` → `report.Build` → `<root>/.folder-inspect/reports/report-<ts>.json` → console / `export` (csv, xlsx, html) / `ui` (browser) → `plan-<ts>.json` → `action.Apply` → `<root>/.folder-inspect/quarantine/<ts>/` + `manifest.json` + `<name>.removed.txt` stubs → `action.Restore`.
 
 ```
-cmd/folder-inspect/   CLI entry point; one file per command (cmd_scan.go, cmd_report.go, cmd_ui.go, cmd_fixture.go); planned: apply, restore
+cmd/folder-inspect/   CLI entry point; one file per command (cmd_scan.go, cmd_report.go, cmd_ui.go, cmd_apply.go, cmd_restore.go, cmd_fixture.go)
+internal/pipeline/    Run(roots, cfg, version): the whole scan, shared by scan and the UI's rescan
 internal/scan/        walker + file index with per-folder aggregates; never follows links; skips system dirs and .folder-inspect
 internal/detect/      detectors over the index: size.go (graded rules), ext.go (archives, distributives), junk.go, empty.go, dup.go (size → head hash → full hash, parallel), dirdup.go (identical folders + overlap pairs, derived from dup groups); planned: names.go
 internal/report/      Report model (schema v3), console summary, output policy (DefaultDir, DefaultName, UniquePath, CheckOverwrite), shared formatting (HumanSize, Qualifier)
 internal/export/      csv.go, xlsx.go (excelize), html.go (html/template, self-contained page)
-internal/ui/          localhost server + embedded static page (plain JS): /api/report, /api/export, /api/plan, /api/reveal
-internal/action/      plan.go — Plan/Action model + validation + plan-<ts>.json; planned: apply, quarantine, restore, pointer stubs
+internal/ui/          localhost server + embedded static page (plain JS): /api/report, /api/export, /api/plan, /api/reveal, /api/rescan, /api/apply
+internal/action/      plan.go (model + validation), apply.go (quarantine batches, manifest, re-verification), stub.go, restore.go, options.go
 internal/config/      defaults + YAML (.folder-inspect.yml), ByteSize with binary units
 internal/glob/        case-insensitive glob matching shared by scan and detect
 internal/i18n/        RU (default) / EN message catalogs; a test enforces key parity

@@ -14,6 +14,7 @@
     sort: { key: 'size', dir: -1 },
     plan: new Map(),      // path -> action
     originals: new Map(), // group id -> path kept
+    lastApply: null,      // result of the last /api/apply, shown until dismissed
   };
 
   const $ = (sel, el = document) => el.querySelector(sel);
@@ -88,7 +89,7 @@
     let size = 0;
     for (const a of state.plan.values()) size += a.size || 0;
     $('#planInfo').innerHTML = n ? `<b>${esc(t('ui.plan'))}:</b> ${esc(tf('ui.plan_items', n, humanSize(size)))}` : `<span class="muted">${esc(t('ui.plan_empty'))}</span>`;
-    $('#planSave').disabled = n === 0;
+    for (const id of ['planSave', 'planDry', 'planApply']) $('#' + id).disabled = n === 0;
     $('#planClear').style.visibility = n ? 'visible' : 'hidden';
   }
   async function savePlan() {
@@ -104,6 +105,73 @@
       $('#planStatus').textContent = tf('ui.plan_error', e.message);
     }
   }
+  async function rescan() {
+    const btn = $('#rescanBtn');
+    btn.disabled = true;
+    $('#rescanStatus').textContent = t('ui.rescanning');
+    try {
+      const r = await fetch('/api/rescan', { method: 'POST' });
+      const txt = await r.text();
+      if (!r.ok) throw new Error(txt);
+      const j = JSON.parse(txt);
+      await load(state.lang);
+      $('#rescanStatus').textContent = tf('ui.rescan_done', j.report_path.split(/[\\/]/).pop());
+    } catch (e) {
+      $('#rescanStatus').textContent = e.message;
+    } finally {
+      btn.disabled = false;
+    }
+  }
+  async function applyPlan(dry) {
+    const actions = [...state.plan.values()];
+    let size = 0;
+    for (const a of actions) size += a.size || 0;
+    if (!dry && !confirm(tf('ui.apply_confirm', actions.length, humanSize(size)))) return;
+    $('#planStatus').textContent = t('ui.apply_running');
+    for (const id of ['planDry', 'planApply', 'planSave']) $('#' + id).disabled = true;
+    try {
+      const r = await fetch('/api/apply', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ actions, dry_run: dry, lang: state.lang }) });
+      const txt = await r.text();
+      if (!r.ok) throw new Error(txt);
+      state.lastApply = JSON.parse(txt);
+      state.view = 'apply-result';
+      $('#planStatus').textContent = '';
+      if (!dry) {
+        state.plan.clear();
+        state.originals.clear();
+        render();
+        await rescan(); // the report must reflect the moved files
+      } else {
+        render();
+      }
+    } catch (e) {
+      $('#planStatus').textContent = tf('ui.plan_error', e.message);
+      renderPlanBar();
+    }
+  }
+  function renderApplyResult(main) {
+    const a = state.lastApply;
+    if (!a) { state.view = 'summary'; return renderMain(); }
+    let html = `<h2>${esc(t('ui.apply_result'))} <span class="muted">${esc(tf('ui.apply_summary', a.moved, a.stubs, a.problems.length))}</span></h2>`;
+    if (a.dry_run) html += `<p class="hint">${esc(t('ui.apply_dry_note'))}</p>`;
+    else if (a.manifests.length) {
+      html += `<p class="hint">${esc(t('ui.apply_manifest'))}</p><ul class="roots">${a.manifests.map((m) => `<li>${esc(m)}</li>`).join('')}</ul>`;
+      html += `<p class="hint"><code>${esc(tf('ui.apply_restore', a.manifests[0]))}</code></p>`;
+    }
+    if (a.problems.length) {
+      html += `<h3>${esc(t('ui.problems'))} (${a.problems.length})</h3><table><tr><th>${esc(t('col.path'))}</th><th>${esc(t('col.error'))}</th></tr>`;
+      for (const p of a.problems) html += `<tr><td class="path">${esc(p.path)}</td><td>${esc(p.error)}</td></tr>`;
+      html += '</table>';
+    }
+    if (a.entries.length) {
+      html += `<table><tr><th>${esc(t('ui.col_action'))}</th><th>${esc(t('ui.col_from'))}</th><th>${esc(t('ui.col_to'))}</th><th>${esc(t('ui.col_stub'))}</th></tr>`;
+      for (const e of a.entries) html += `<tr><td class="tag">${esc(t('op.' + e.op))}</td><td class="path">${esc(e.from)}</td><td class="path">${esc(e.to)}</td><td class="path">${esc(e.stub ? e.stub.split(/[\\/]/).pop() : '')}</td></tr>`;
+      html += '</table>';
+    }
+    html += `<p><button class="btn" id="backBtn">${esc(t('ui.apply_back'))}</button></p>`;
+    main.innerHTML = html;
+    $('#backBtn', main).addEventListener('click', () => { state.view = 'summary'; state.lastApply = null; render(); });
+  }
   async function reveal(path) {
     try { await fetch('/api/reveal', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ path }) }); } catch (_) { /* local only */ }
   }
@@ -117,7 +185,10 @@
     $('#exportLabel').textContent = t('ui.export') + ':';
     for (const f of ['csv', 'xlsx', 'html']) $('#export' + f[0].toUpperCase() + f.slice(1)).href = `/api/export?format=${f}&lang=${state.lang}`;
     $('#langBtn').textContent = t('ui.lang_switch');
+    $('#rescanBtn').textContent = t('ui.rescan');
     $('#planSave').textContent = t('ui.plan_save');
+    $('#planDry').textContent = t('ui.apply_dry');
+    $('#planApply').textContent = t('ui.apply');
     $('#planClear').textContent = t('ui.plan_clear');
     renderNav();
     renderMain();
@@ -155,6 +226,7 @@
     if (v === 'top-files' || v === 'top-dirs') return renderTop(main, v);
     if (v === 'errors') return renderErrors(main);
     if (v === 'skipped') return renderSkipped(main);
+    if (v === 'apply-result') return renderApplyResult(main);
     main.innerHTML = '';
   }
 
@@ -171,6 +243,7 @@
     for (const s of d.summary) html += `<tr class="link" data-view="${s.category}"><td><a href="#">${esc(t('cat.' + s.category))}</a></td><td class="num">${s.count}</td><td class="num">${humanSize(s.size)}</td></tr>`;
     html += '</table>';
     html += `<p class="hint" style="margin-top:14px">${esc(t('ui.plan_hint'))}</p>`;
+    if (d.skipped.length) html += `<p class="hint">${esc(t('html.skipped'))}: ${d.skipped.length}</p>`;
     main.innerHTML = html;
     main.querySelectorAll('tr.link').forEach((tr) => tr.addEventListener('click', (e) => { e.preventDefault(); state.view = tr.dataset.view; render(); }));
   }
@@ -333,10 +406,25 @@
     const j = await r.json();
     state.d = j.report; state.lang = j.lang; state.S = j.strings;
     state.meta = { report_path: j.report_path, plan_dir: j.plan_dir, version: j.version, os: j.os };
+    prunePlan();
     render();
+  }
+  // After a rescan the plan may name paths that no longer exist in the
+  // report (already moved, or fixed by hand): drop them.
+  function prunePlan() {
+    if (!state.plan.size) return;
+    const known = new Set(state.d.findings.map((f) => f.path));
+    for (const g of state.d.duplicates) for (const f of g.files) known.add(f.path);
+    for (const g of state.d.dir_duplicates) for (const d of g.dirs) known.add(d.path);
+    let dropped = 0;
+    for (const p of [...state.plan.keys()]) if (!known.has(p)) { state.plan.delete(p); dropped++; }
+    if (dropped) $('#planStatus').textContent = '';
   }
   $('#langBtn').addEventListener('click', () => load(state.lang === 'ru' ? 'en' : 'ru'));
   $('#planSave').addEventListener('click', savePlan);
+  $('#planDry').addEventListener('click', () => applyPlan(true));
+  $('#planApply').addEventListener('click', () => applyPlan(false));
+  $('#rescanBtn').addEventListener('click', rescan);
   $('#planClear').addEventListener('click', () => { state.plan.clear(); $('#planStatus').textContent = ''; render(); });
   load();
 })();

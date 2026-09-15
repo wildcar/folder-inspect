@@ -4,6 +4,12 @@ Newest first. Each entry ≤5 lines using the format defined in `AGENTS.md`.
 
 ---
 
+## 2026-09-15 · Slice 3b: apply, quarantine, restore, stubs, rescan
+- What: `internal/action` apply.go (dated quarantine batches per root, manifest, duplicate re-verification by hash, deeper-paths-first, dry-run), restore.go, stub.go (`<name>.removed.txt` with category reasons, RU/EN via `i18n.TL`, custom `quarantine.stub_texts`), options.go; `pipeline.Run` shared by scan and UI; UI: Rescan, Check plan, Apply plan (confirm → result screen → auto rescan), plan pruning after rescan; CLI `apply`, `restore`; config `quarantine`, `videos`.
+- Why: owner asked for slice 3b plus rescan from the UI and stubs for every quarantined file, modelled on their SVN notes ("Distributives were removed…").
+- Files: internal/action/*, internal/pipeline/pipeline.go, internal/ui/server.go, internal/ui/static/*, cmd/folder-inspect/cmd_apply.go, cmd/folder-inspect/cmd_restore.go, internal/config/config.go, internal/i18n/i18n.go, AGENTS/SPEC.md, AGENTS.md, README.md, docs/folder-inspect.example.yml
+- Next: owner tries the loop on a real repository; then near-duplicate names and a quarantine listing command.
+
 ## 2026-09-15 · Slice 3a: duplicate folders, web UI, reports under the root
 - What: `detect.DuplicateDirs` (identical folders by signature of file hashes; overlapping pairs with ratio/min-files thresholds and nested-pair suppression), report schema 3, console/CSV/XLSX/HTML sections; `internal/ui` localhost server with embedded page (categories, groups with original pick, plan saving, exports, RU/EN, reveal), `internal/action` plan model; `ui` command; default report path `<root>/.folder-inspect/reports/` with fallback and `-2` suffixing.
 - Why: owner asked for slice 3 (web UI), reports under the root, and duplicate folders (full and partial).

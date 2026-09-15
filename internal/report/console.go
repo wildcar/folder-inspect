@@ -20,7 +20,10 @@ type ConsoleOptions struct {
 }
 
 // HumanSize formats bytes in binary units with localized unit names.
-func HumanSize(n int64) string {
+func HumanSize(n int64) string { return HumanSizeLang(n, i18n.Lang()) }
+
+// HumanSizeLang is HumanSize in an explicit language.
+func HumanSizeLang(n int64, lang string) string {
 	b := config.ByteSize(n)
 	var v float64
 	var unit string
@@ -34,9 +37,9 @@ func HumanSize(n int64) string {
 	case b >= config.KB:
 		v, unit = float64(b)/float64(config.KB), "KB"
 	default:
-		return fmt.Sprintf("%d %s", n, i18n.T("unit.B"))
+		return fmt.Sprintf("%d %s", n, i18n.TL(lang, "unit.B"))
 	}
-	return fmt.Sprintf("%.1f %s", v, i18n.T("unit."+unit))
+	return fmt.Sprintf("%.1f %s", v, i18n.TL(lang, "unit."+unit))
 }
 
 // PrintConsole writes the human summary of the report.

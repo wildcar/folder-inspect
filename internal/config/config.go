@@ -54,6 +54,35 @@ type Config struct {
 	Duplicates DupConfig `yaml:"duplicates" json:"duplicates"`
 	// FolderDuplicates tunes identical / overlapping folder detection.
 	FolderDuplicates DirDupConfig `yaml:"folder_duplicates" json:"folder_duplicates"`
+	// Videos are extensions that get the "video" explanation in stubs.
+	Videos []string `yaml:"videos" json:"videos"`
+	// Quarantine tunes apply: where files go and which stubs are left.
+	Quarantine QuarantineConfig `yaml:"quarantine" json:"quarantine"`
+}
+
+// QuarantineConfig tunes the clean-up step.
+type QuarantineConfig struct {
+	// Dir is the quarantine folder relative to the scanned root.
+	Dir string `yaml:"dir" json:"dir"`
+	// Stubs enables the "<name>.removed.txt" files left where a file was.
+	Stubs bool `yaml:"stubs" json:"stubs"`
+	// StubCategories lists the finding categories that get a stub.
+	StubCategories []string `yaml:"stub_categories" json:"stub_categories"`
+	// StubTexts overrides the reason paragraph per category (plain text).
+	StubTexts map[string]string `yaml:"stub_texts" json:"stub_texts,omitempty"`
+}
+
+// StubFor reports whether a category gets a stub.
+func (q QuarantineConfig) StubFor(category string) bool {
+	if !q.Stubs {
+		return false
+	}
+	for _, c := range q.StubCategories {
+		if c == category {
+			return true
+		}
+	}
+	return false
 }
 
 // DupConfig tunes duplicate detection.
@@ -91,6 +120,12 @@ func Default() *Config {
 		TopN:             20,
 		Duplicates:       DupConfig{Enabled: true, MinSize: 1 * KB},
 		FolderDuplicates: DirDupConfig{Enabled: true, MinOverlap: 0.5, MinFiles: 2},
+		Videos:           []string{"mp4", "mkv", "avi", "mov", "wmv", "m4v", "mpg", "mpeg", "webm", "3gp", "insv", "lrv", "m4a", "mp3", "wav", "flac"},
+		Quarantine: QuarantineConfig{
+			Dir:            ".folder-inspect/quarantine",
+			Stubs:          true,
+			StubCategories: []string{"oversize", "archive", "distributive", "duplicate", "dir-duplicate"},
+		},
 	}
 }
 
@@ -168,6 +203,16 @@ func (c *Config) normalize() error {
 	}
 	c.Archives = normalizeExts(c.Archives)
 	c.Distributives = normalizeExts(c.Distributives)
+	c.Videos = normalizeExts(c.Videos)
+	q := &c.Quarantine
+	raw := strings.TrimSpace(strings.ReplaceAll(q.Dir, "\\", "/"))
+	if raw == "" {
+		raw = Default().Quarantine.Dir
+	}
+	if strings.HasPrefix(raw, "/") || strings.Contains(raw, ":") || strings.Contains("/"+raw+"/", "/../") {
+		return fmt.Errorf("quarantine.dir must be a relative path inside the scanned folder, got %q", q.Dir)
+	}
+	q.Dir = strings.Trim(raw, "/")
 	return nil
 }
 

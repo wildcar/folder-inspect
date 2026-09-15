@@ -101,6 +101,31 @@ func TestLoadFolderDuplicatesSection(t *testing.T) {
 	}
 }
 
+func TestQuarantineSection(t *testing.T) {
+	cfg := Default()
+	if !cfg.Quarantine.StubFor("archive") || cfg.Quarantine.StubFor("junk") {
+		t.Error("default stub categories wrong")
+	}
+	p := filepath.Join(t.TempDir(), FileName)
+	os.WriteFile(p, []byte("quarantine:\n  dir: Карантин\\\n  stubs: true\n  stub_categories: [junk]\n  stub_texts:\n    junk: \"Служебный файл убран.\"\n"), 0o644)
+	got, err := Load(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Quarantine.Dir != "Карантин" || !got.Quarantine.StubFor("junk") || got.Quarantine.StubFor("archive") || got.Quarantine.StubTexts["junk"] == "" {
+		t.Errorf("quarantine section: %+v", got.Quarantine)
+	}
+	for _, bad := range []string{"quarantine:\n  dir: C:/tmp\n", "quarantine:\n  dir: ../out\n", "quarantine:\n  dir: /abs\n"} {
+		os.WriteFile(p, []byte(bad), 0o644)
+		if _, err := Load(p); err == nil {
+			t.Errorf("must reject %q", bad)
+		}
+	}
+	if len(Default().Videos) == 0 || Default().Videos[0] != "mp4" {
+		t.Error("videos default")
+	}
+}
+
 func TestLoadDuplicatesSection(t *testing.T) {
 	p := filepath.Join(t.TempDir(), FileName)
 	os.WriteFile(p, []byte("duplicates:\n  enabled: false\n  min_size: 10MB\n"), 0o644)

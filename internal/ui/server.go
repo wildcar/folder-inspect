@@ -20,23 +20,29 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/wildcar/folder-inspect/internal/action"
+	"github.com/wildcar/folder-inspect/internal/config"
 	"github.com/wildcar/folder-inspect/internal/export"
 	"github.com/wildcar/folder-inspect/internal/i18n"
+	"github.com/wildcar/folder-inspect/internal/pipeline"
 	"github.com/wildcar/folder-inspect/internal/report"
 )
 
 //go:embed static
 var static embed.FS
 
-// Server holds one report.
+// Server holds one report. Rescan and apply replace or act on it, so every
+// handler takes the mutex.
 type Server struct {
 	Report     *report.Report
 	ReportPath string // absolute path the report was loaded from
-	PlanDir    string // where plans are saved (default: folder of the report)
+	PlanDir    string // where plans and new reports are saved (default: folder of the report)
 	Version    string
+
+	mu sync.Mutex
 }
 
 // Handler builds the HTTP routes.
@@ -51,7 +57,119 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("/api/export", s.handleExport)
 	mux.HandleFunc("/api/plan", s.handlePlan)
 	mux.HandleFunc("/api/reveal", s.handleReveal)
+	mux.HandleFunc("/api/rescan", s.handleRescan)
+	mux.HandleFunc("/api/apply", s.handleApply)
 	return mux
+}
+
+type rescanResponse struct {
+	ReportPath string `json:"report_path"`
+	Files      int    `json:"files"`
+	Findings   int    `json:"findings"`
+}
+
+// handleRescan re-runs the scan with the report's own effective config
+// (same roots, thresholds and exclusions), saves a new report next to the
+// current one and switches the UI to it.
+func (s *Server) handleRescan(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "POST only", http.StatusMethodNotAllowed)
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	cfg := s.Report.Config
+	if cfg == nil {
+		cfg = config.Default()
+	}
+	rep, err := pipeline.Run(s.Report.Roots, cfg, s.Version)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	path := report.UniquePath(filepath.Join(s.PlanDir, report.DefaultName(rep.Started)))
+	if err := rep.WriteJSON(path); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	s.Report, s.ReportPath = rep, path
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	json.NewEncoder(w).Encode(rescanResponse{ReportPath: path, Files: rep.Stats.Files, Findings: len(rep.Findings)})
+}
+
+type applyRequest struct {
+	Actions []action.Action `json:"actions"`
+	DryRun  bool            `json:"dry_run"`
+	Lang    string          `json:"lang"`
+}
+
+type applyResponse struct {
+	DryRun    bool             `json:"dry_run"`
+	Plan      string           `json:"plan,omitempty"`
+	Moved     int              `json:"moved"`
+	Stubs     int              `json:"stubs"`
+	Manifests []string         `json:"manifests"`
+	Entries   []action.Entry   `json:"entries"`
+	Problems  []action.Problem `json:"problems"`
+}
+
+// handleApply saves the plan (unless dry-run) and carries it out with the
+// quarantine settings of the report's config. The browser asked for
+// confirmation before calling this; the server only checks validity.
+func (s *Server) handleApply(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "POST only", http.StatusMethodNotAllowed)
+		return
+	}
+	var req applyRequest
+	if err := json.NewDecoder(io.LimitReader(r.Body, 50<<20)).Decode(&req); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	p := action.New(s.ReportPath, s.Report.Roots)
+	p.Actions = req.Actions
+	if len(p.Actions) == 0 {
+		http.Error(w, "plan is empty", http.StatusBadRequest)
+		return
+	}
+	if err := p.Validate(); err != nil {
+		http.Error(w, err.Error(), http.StatusForbidden)
+		return
+	}
+	resp := applyResponse{DryRun: req.DryRun, Manifests: []string{}, Entries: []action.Entry{}, Problems: []action.Problem{}}
+	if !req.DryRun {
+		path, err := p.Save(s.PlanDir)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		resp.Plan = path
+	}
+	lang := req.Lang
+	if lang != i18n.EN && lang != i18n.RU {
+		lang = i18n.Lang()
+	}
+	opt := action.OptionsFromConfig(s.Report.Config, lang, resp.Plan, action.FindingsByPath(s.Report.Findings))
+	opt.DryRun = req.DryRun
+	res, err := action.Apply(p, opt)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	resp.Moved, resp.Stubs, resp.Problems = res.Moved, res.Stubs, res.Problems
+	if resp.Problems == nil {
+		resp.Problems = []action.Problem{}
+	}
+	for _, m := range res.Manifests {
+		resp.Entries = append(resp.Entries, m.Entries...)
+		if !req.DryRun && len(m.Entries) > 0 {
+			resp.Manifests = append(resp.Manifests, m.Path)
+		}
+	}
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	json.NewEncoder(w).Encode(resp)
 }
 
 func noCache(h http.Handler) http.Handler {
@@ -72,6 +190,8 @@ type reportResponse struct {
 }
 
 func (s *Server) handleReport(w http.ResponseWriter, r *http.Request) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	lang := pickLang(r)
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	json.NewEncoder(w).Encode(reportResponse{
@@ -99,6 +219,8 @@ func (s *Server) handleExport(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "unknown format", http.StatusBadRequest)
 		return
 	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	// Exports read the process-wide language; the tool is single-user.
 	prev := i18n.Lang()
 	i18n.Set(pickLang(r))
@@ -132,6 +254,8 @@ func (s *Server) handlePlan(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	p := action.New(s.ReportPath, s.Report.Roots)
 	p.Actions = req.Actions
 	if len(p.Actions) == 0 {
@@ -164,7 +288,10 @@ func (s *Server) handleReveal(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	if !s.insideRoots(req.Path) {
+	s.mu.Lock()
+	inside := s.insideRoots(req.Path)
+	s.mu.Unlock()
+	if !inside {
 		http.Error(w, "path is outside the scanned folders", http.StatusForbidden)
 		return
 	}
