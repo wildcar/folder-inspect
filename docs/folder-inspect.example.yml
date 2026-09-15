@@ -1,0 +1,59 @@
+# Example configuration for folder-inspect.
+# Copy to <scanned folder>/.folder-inspect.yml or ~/.folder-inspect.yml.
+# Every key is optional; a list given here REPLACES the built-in list.
+# Sizes use binary units: 1 MB = 1 048 576 bytes (what Windows Explorer shows).
+
+# Skip these during the scan. A pattern without "/" matches a file or folder
+# name anywhere; a pattern with "/" matches the path relative to the root.
+exclude:
+  - "Старое/"
+  - "*.log"
+  - "Проект B/Фото/*.raw"
+
+# Oversized files, graded by kind. The rule with the file's extension is
+# tried first; "*" rules catch everything else.
+size_rules:
+  - name: huge
+    extensions: ["*"]
+    threshold: 100MB
+  - name: documents
+    extensions: [doc, docx, rtf, odt]
+    threshold: 15MB
+  - name: presentations
+    extensions: [ppt, pptx, odp]
+    threshold: 15MB
+  - name: spreadsheets
+    extensions: [xls, xlsx, ods]
+    threshold: 15MB
+  - name: pdf
+    extensions: [pdf]
+    threshold: 30MB
+  - name: images
+    extensions: [jpg, jpeg, png, gif, bmp, tif, tiff, heic, webp]
+    threshold: 5MB
+
+# Reported wherever they are: documents must be directly openable.
+archives: [zip, rar, 7z, tar, gz, tgz, bz2, xz, z, cab, arj, lzh, iso, img]
+distributives: [exe, msi, msix, appx, deb, rpm, dmg, pkg]
+
+# Junk: glob patterns matched against file and folder names, case-insensitive.
+junk:
+  - "*.bak"
+  - "*.tmp"
+  - "*.temp"
+  - "*.old"
+  - "*.orig"
+  - "*.swp"
+  - "~$*"          # Office lock files
+  - "~*.tmp"
+  - "Thumbs.db"
+  - "desktop.ini"
+  - ".DS_Store"
+  - "._*"
+  - ".Spotlight-V100"
+  - ".Trashes"
+  - "*.crdownload"
+  - "*.part"
+
+# How many largest files / heaviest folders to keep in the report.
+top_n: 20

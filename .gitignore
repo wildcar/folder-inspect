@@ -16,3 +16,9 @@ Thumbs.db
 *.swp
 
 # Add project-specific ignores below (build output, dependencies, caches, ...)
+
+# Go build output and local scan artefacts
+dist/
+*.exe
+/report*.json
+/.folder-inspect/

@@ -13,9 +13,9 @@ If the project runs in more than one place (e.g. local dev + a server), split pe
 ## Tools
 
 - git 2.53 (Windows). No `gh` CLI installed.
-- **Go: NOT installed** as of 2026-09-15 (stack chosen in ADR-0001). The dev user has **no admin
-  rights**, so the MSI / winget / choco routes are out. Per-user install from the official zip
-  into `%LOCALAPPDATA%\Programs\go`, user PATH only (PowerShell 7):
+- **Go 1.27.1** (windows/amd64), installed 2026-09-15 per-user into `%LOCALAPPDATA%\Programs\go`
+  (`go env GOPATH` = `C:\Users\sergey_e\go`). The dev user has **no admin rights**, so the
+  MSI / winget / choco routes are out; to upgrade, re-run the per-user install (PowerShell 7):
 
   ```powershell
   $ver = (Invoke-RestMethod 'https://go.dev/dl/?mode=json')[0].version
@@ -30,7 +30,7 @@ If the project runs in more than one place (e.g. local dev + a server), split pe
   ```
 
   Restart the terminal (and the Claude desktop app) afterwards so the new PATH is picked up.
-  Latest stable on 2026-09-15: go1.27.1 (zip ≈ 79 MB). Record the installed version here.
+- No `golangci-lint`; lint = `go vet` + `gofmt -l`.
 - Also present but not used by the project: Python 3.14, Node.js, PostgreSQL 18 client, Pandoc.
 
 ## Credentials & secrets
@@ -76,6 +76,8 @@ A running log of gotchas — the things that cost an hour the first time. Split 
 
 - Global git identity on this host is a work account; the repo overrides it locally with `wildcar <wildcar@mail.ru>` (`git config user.name/email`, not `--global`).
 - Long bash heredocs with Cyrillic content failed to parse in the agent's Bash tool; use a file-write tool instead.
+- Creating symlinks needs Developer Mode or admin on Windows; `scan.TestWalkDoesNotFollowSymlinks` skips itself when it cannot create one.
+- `go test` on the fixture package writes ~200 KB (scale 1024); the `fixture` command at scale 1 writes ~170 MB — point it at a temp folder.
 
 ### Prod
 

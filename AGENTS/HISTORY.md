@@ -4,6 +4,12 @@ Newest first. Each entry ≤5 lines using the format defined in `AGENTS.md`.
 
 ---
 
+## 2026-09-15 · Go scaffold + MVP slice 1: scan → report.json + console
+- What: Go module, walker (no link following, system dirs skipped, folder aggregates), detectors (graded size rules, archives, distributives, junk, empty), YAML config with ByteSize, RU/EN i18n, report.json schema 1, console summary, `fixture` demo generator, unit + end-to-end tests; README/AGENTS updated with real commands and layout.
+- Why: Go installed by the owner (1.27.1, per-user); first usable slice of the contract.
+- Files: go.mod, cmd/folder-inspect/*, internal/{scan,detect,report,config,glob,i18n,fixture}/*, docs/folder-inspect.example.yml, AGENTS.md, AGENTS/SPEC.md, AGENTS/ENV.md, README.md, .gitignore
+- Next: slice 2 — exact duplicates, then CSV/XLSX/HTML exports.
+
 ## 2026-09-15 · Discovery closed → SPEC v0.2, MIT license
 - What: final answers recorded — browser UI accepted, xls 15 MB / pdf 30 MB, distributives category on, pointer stub instead of hard links, canonical duplicate picked in UI, quarantine in root; LICENSE (MIT) added; per-user Go install documented.
 - Why: owner answered the remaining seven questions; hard links rejected in favour of a visible trace of removed duplicates.

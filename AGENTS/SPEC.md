@@ -55,17 +55,20 @@ folder-inspect scan <root...>
 ## Functional requirements
 
 ### Scanning
-- FR-1 ⏳ Scan one or more roots given on the command line; a root may be a local path or a
-  mounted network path (Windows UNC included).
-- FR-2 ⏳ Do not follow symlinks or junctions; report them but never traverse or modify them.
-- FR-3 ⏳ Skip and never touch system locations (`$RECYCLE.BIN`, `System Volume Information`,
-  the tool's own quarantine folder).
-- FR-4 ⏳ Exclusions: paths and glob patterns via config file and flags.
-- FR-5 ⏳ Config file `.folder-inspect.yml` in the scanned root and/or user home; flags
-  override file values; sane built-in defaults when no config exists.
+- FR-1 ✅ Scan one or more roots given on the command line; a root may be a local path or a
+  mounted network path (Windows UNC included — not yet exercised on a real share).
+- FR-2 ✅ Do not follow symlinks or junctions; they are listed under "skipped", never traversed.
+- FR-3 ✅ Skip and never touch system locations (`$RECYCLE.BIN`, `System Volume Information`,
+  the tool's own `.folder-inspect/` folder).
+- FR-4 ✅ Exclusions: glob patterns via config (`exclude:`) and repeatable `-exclude` flag.
+  A pattern without `/` matches a file/folder name at any depth; with `/` it matches the
+  relative path or is a folder prefix. `**` is not supported yet.
+- FR-5 ✅ Config file `.folder-inspect.yml` in the scanned root, else in the user home, else
+  `-config`; flags override file values; built-in defaults when no file exists. Unknown keys
+  are errors. A list in the file replaces the default list.
 
 ### Detector: oversized files (graded by kind)
-- FR-10 ⏳ Size rules are a table *file-kind → threshold*, fully configurable. Defaults:
+- FR-10 ✅ Size rules are a table *file-kind → threshold*, fully configurable. Defaults:
 
   | Kind | Extensions (default) | Threshold |
   |---|---|---|
@@ -76,24 +79,27 @@ folder-inspect scan <root...>
   | PDF | pdf | 30 MB |
   | images | jpg jpeg png gif bmp tif tiff heic webp | 5 MB |
 
-- FR-11 ⏳ A file is reported once, under the most specific matching rule, with the rule name.
-- FR-12 ⏳ Report top-N largest files and top-N heaviest folders regardless of thresholds.
+- FR-11 ✅ A file is reported once: the rule for its extension is tried first; if that does
+  not fire, generic (`*`) rules are tried. The finding carries the rule name and threshold.
+- FR-12 ✅ Report top-N largest files and top-N heaviest folders regardless of thresholds
+  (`top_n`, default 20; `-top` flag).
 
 ### Detector: archives and distributives
-- FR-13 ⏳ Archives by extension: zip rar 7z tar gz tgz bz2 xz z cab arj lzh iso img.
+- FR-13 ✅ Archives by extension: zip rar 7z tar gz tgz bz2 xz z cab arj lzh iso img.
   Rationale: project documents must be directly openable by link; an archive signals a
   distributive, an attempt to keep old versions, or a bundle prepared for sending.
-- FR-14 ⏳ Office and similar container formats (docx xlsx pptx odt jar apk) are **not**
+- FR-14 ✅ Office and similar container formats (docx xlsx pptx odt jar apk) are **not**
   archives.
-- FR-15 ⏳ Installers/distributives (exe msi msix appx deb rpm dmg pkg) are reported as a
+- FR-15 ✅ Installers/distributives (exe msi msix appx deb rpm dmg pkg) are reported as a
   separate "distributive" category next to archives. On by default.
 
 ### Detector: junk
-- FR-16 ⏳ Built-in patterns: `*.bak *.tmp *.temp *.old *.orig *.swp`, Office lock/temp files
+- FR-16 ✅ Built-in patterns: `*.bak *.tmp *.temp *.old *.orig *.swp`, Office lock/temp files
   `~$*` and `~*.tmp`, `Thumbs.db`, `desktop.ini`, `.DS_Store`, `._*`, `.Spotlight-V100`,
-  `.Trashes`, `*.crdownload *.part` (unfinished downloads).
-- FR-17 ⏳ User-defined junk patterns in gitignore-like glob syntax via config.
-- FR-18 ⏳ Empty folders and zero-size files.
+  `.Trashes`, `*.crdownload *.part` (unfinished downloads). A matching folder is one finding
+  with its total size; files inside are not reported again.
+- FR-17 ✅ User-defined junk patterns (case-insensitive globs) via config `junk:`.
+- FR-18 ✅ Empty folders (only the top-most of a nested empty chain) and zero-size files.
 
 ### Detector: duplicates
 - FR-19 ⏳ Exact duplicates by content: group by size → hash first 64 KB → full SHA-256.
@@ -108,14 +114,18 @@ folder-inspect scan <root...>
   modification time as a suggestion. Nothing happens to a group without a pick.
 
 ### Reporting
-- FR-30 ⏳ `report.json` — native result: metadata (roots, time, config, tool version) and all
-  findings with path, size, mtime, category, rule, group id.
-- FR-31 ⏳ Console summary after a scan: counts and sizes per category, top findings.
+- FR-30 ✅ `report.json` (schema 1) — native result: tool/version, start/finish, roots, the
+  effective config, stats, per-category summary, all findings (path, rel, root, size, mtime,
+  category, rule, threshold, detail), top files/folders, errors, skipped paths. Group ids
+  arrive with duplicates.
+- FR-31 ✅ Console summary after a scan: counts and sizes per category, first 10 findings per
+  category, top-10 files and folders, read errors, report path. `-quiet` suppresses it.
 - FR-32 ⏳ Web UI (`folder-inspect ui`): localhost page in the default browser, findings by
   category, sort/filter/search, duplicate groups, tick boxes to assemble an action plan,
   export buttons. Embedded into the executable; no external resources.
 - FR-33 ⏳ Exports: CSV, XLSX, self-contained HTML.
-- FR-34 ⏳ User-facing text in Russian and English; selectable by flag, auto-detected from OS.
+- FR-34 ✅ User-facing text in Russian (default) and English; `-lang ru|en`; auto-detection
+  currently reads `LANG`/`LC_ALL`/`LANGUAGE` only (⏳ real OS locale on Windows).
 
 ### Actions
 - FR-40 ⏳ Read-only by default. Any change to the file system happens only through
@@ -149,23 +159,22 @@ folder-inspect scan <root...>
   parallel and limited to duplicate candidates.
 - NFR-2 ⏳ Unit tests for every detector; integration tests on a generated "dirty repository"
   fixture; the fixture generator is also used for demos.
-- NFR-3 ⏳ Non-zero exit code on scan errors (unreadable paths) — reported, not fatal.
+- NFR-3 ✅ Exit code 1 on scan errors (unreadable paths) — reported, not fatal; 2 on usage errors.
 
 ## Project structure
 
-⏳ To be laid out with the Go scaffold. Intended:
-
 ```
-cmd/folder-inspect/     entry point, CLI commands
-internal/scan/          walker, file index
-internal/detect/        one package per detector (size, archive, junk, dup, names, empty)
-internal/report/        JSON model, console summary, exports (csv, xlsx, html)
-internal/ui/            embedded web UI (static HTML/JS) + local HTTP handlers
-internal/action/        plan, apply, quarantine, restore, pointer stubs
-internal/config/        YAML config, defaults, flag merge
+cmd/folder-inspect/     entry point; cmd_scan.go, cmd_fixture.go (planned: report, ui, plan, apply, restore)
+internal/scan/          walker, file index with per-folder aggregates
+internal/detect/        detectors in one package: size.go, ext.go (archives, distributives), junk.go, empty.go (planned: dup.go, names.go)
+internal/report/        Report model + JSON I/O, console summary (planned: csv, xlsx, html)
+internal/config/        defaults, YAML loading, ByteSize
+internal/glob/          case-insensitive glob matching
 internal/i18n/          RU / EN message catalogs
-testdata/               fixture generator for a dirty repository
-docs/                   ADRs, questionnaire, user docs
+internal/fixture/       deterministic dirty-repository generator (tests + `fixture` command)
+planned: internal/ui/   embedded web UI (static HTML/JS) + local HTTP handlers
+planned: internal/action/  plan, apply, quarantine, restore, pointer stubs
+docs/                   ADRs, questionnaire, example config
 ```
 
 ## Deployment
@@ -175,7 +184,12 @@ docs/                   ADRs, questionnaire, user docs
 ## Current state
 
 - ✅ Discovery fully answered; stack decided (ADR-0001); this contract v0.2. License: MIT.
-- ⏳ Go toolchain not yet installed on the dev host; project scaffold pending.
+- ✅ MVP slice 1 (2026-09-15): `scan` → `report.json` + RU/EN console summary with graded
+  size rules, archives, distributives, junk, empty folders/files; YAML config; exclusions;
+  `fixture` demo generator; unit + end-to-end tests.
+- ⏳ Slice 2: exact duplicates (FR-19, FR-21 data), exports CSV/XLSX/HTML (FR-33).
+- ⏳ Slice 3: web UI (FR-32), plan/apply/restore, quarantine, pointer stubs (FR-40…44).
+- ⏳ Then: near-duplicate names (FR-20), OS locale detection, `**` in globs.
 - ❓ Minor: more near-duplicate name patterns from practice; optional `.lnk` next to the stub.
 
 See `AGENTS/STATE.md` for the live Now / Next snapshot.

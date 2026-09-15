@@ -127,35 +127,40 @@ Hard constraints and invariants this project must not violate. Keep each rule on
 
 Stack one-liner plus the commands an agent needs on day one. Keep the full cheat-sheet in `AGENTS/ENV.md`; here keep only the essentials.
 
-Stack: Go (latest stable), standard toolchain, single static binary per OS (Windows, Linux). Go is **not installed on the dev host yet** — see `AGENTS/ENV.md`.
+Stack: Go 1.27 (module `github.com/wildcar/folder-inspect`), standard toolchain, single static binary per OS (Windows, Linux). Only third-party module so far: `gopkg.in/yaml.v3`.
 
 ```bash
 # install      — go mod download
-# dev / run    — go run ./cmd/folder-inspect scan <root>
-# build        — go build -o dist/ ./cmd/folder-inspect
+# dev / run    — go run ./cmd/folder-inspect scan <root>          (also: fixture <empty-dir>, version)
+# build        — go build -o dist/folder-inspect.exe ./cmd/folder-inspect
 # test         — go test ./...
 # lint         — go vet ./... && gofmt -l .   (gofmt -l must print nothing)
+# demo         — go run ./cmd/folder-inspect fixture /tmp/demo && go run ./cmd/folder-inspect scan /tmp/demo
 ```
 
 ## Architecture
 
-Intended layout (no code yet — see `AGENTS/SPEC.md` → Project structure for the full map):
+Pipeline: `scan.Walk` → `detect.Run` → `report.Build` → `report.json` → console (later: web UI, exports, plan/apply).
 
 ```
-cmd/folder-inspect/   CLI entry point and commands (scan, report, ui, plan, apply, restore)
-internal/scan/        walker + file index
-internal/detect/      detectors: size rules, archives, junk, duplicates, names, empty
-internal/report/      JSON model, console summary, CSV/XLSX/HTML exports
-internal/ui/          embedded web UI + localhost handlers
-internal/action/      plan, apply, quarantine, restore, pointer stubs
-internal/config/      YAML config, defaults, flag merge
-internal/i18n/        RU / EN messages
-testdata/             dirty-repository fixture generator
+cmd/folder-inspect/   CLI entry point; one file per command (cmd_scan.go, cmd_fixture.go); planned: report, ui, plan, apply, restore
+internal/scan/        walker + file index with per-folder aggregates; never follows links; skips system dirs
+internal/detect/      pure detectors over the index: size.go (graded rules), ext.go (archives, distributives), junk.go, empty.go; planned: dup.go, names.go
+internal/report/      Report model (report.json, schema v1), console summary; planned: CSV/XLSX/HTML exports
+internal/config/      defaults + YAML (.folder-inspect.yml), ByteSize with binary units
+internal/glob/        case-insensitive glob matching shared by scan and detect
+internal/i18n/        RU (default) / EN message catalogs; a test enforces key parity
+internal/fixture/     deterministic "dirty repository" generator for tests and demos (`fixture` command)
+docs/folder-inspect.example.yml   annotated example config
+planned: internal/ui/ (embedded web UI), internal/action/ (plan, apply, quarantine, restore, pointer stubs)
 ```
 
 ## Code Style
 
 - `gofmt` formatting, `go vet` clean; standard Go naming; errors wrapped with `%w` and context.
-- Sizes are `int64` bytes internally; human-readable formatting only at presentation time (1 MB = 1 000 000 bytes? — decide in the first size-rule commit and record here).
+- Sizes are `int64` bytes internally (`config.ByteSize` in config/JSON); **binary units** everywhere: 1 MB = 1 048 576 bytes, as Windows Explorer shows. Human formatting only at presentation time (`report.HumanSize`).
 - Detectors are pure functions over the file index; no I/O besides hashing in the duplicate detector.
+- All name/pattern matching is case-insensitive (`internal/glob`) — users are on case-insensitive file systems.
+- Findings carry machine values (`Rule`, `Threshold`, `Detail`); translation happens in the presentation layer via `i18n` keys, never inside detectors.
+- Every user-visible string goes through `i18n.T`; add the key to both RU and EN maps (the i18n test fails otherwise).
 - Match the conventions of surrounding code: comment density, naming, idiom.
