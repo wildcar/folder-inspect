@@ -152,7 +152,7 @@ func TestXLSX(t *testing.T) {
 		t.Errorf("overlap sheet rows: %d", len(ovRows))
 	}
 	nmRows, _ := f.GetRows("Похожие имена")
-	if len(nmRows) != 6 { // header + Договор ×3 + Отчёт за март ×2
+	if len(nmRows) != 3 { // header + Отчёт за март ×2 (same folder only)
 		t.Errorf("similar names sheet rows: %d", len(nmRows))
 	}
 	if v, _ := f.GetCellValue("Сводка", "A1"); v != "Показатель" {

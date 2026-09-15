@@ -110,9 +110,10 @@ folder-inspect scan <root...>
   copy/version markers are stripped (case-insensitive, RU + EN, repeated until none match):
   prefixes `Копия `, `Copy of `; suffixes `- копия`, `- копия (N)`, `- Copy (N)`, `(N)`,
   `(Восстановлен)`, `(Recovered)`, `(final)`…, `_v2` / ` v3.1` / `_версия 2`, `_final`,
-  `_итог`, `_старый`, `_old`, `_new`, `_новый`, `_backup`, `_draft`… Reported only when a
-  group has ≥ 2 files and at least one carries a marker (two plain "Договор.docx" in
-  different projects are normal). Members show the marker, whether they are the base file,
+  `_итог`, `_старый`, `_old`, `_new`, `_новый`, `_backup`, `_draft`… Grouping is **per
+  folder** (owner decision 2026-09-15: repository-wide grouping was too noisy; a copy usually
+  sits next to its source). Reported only when a group has ≥ 2 files and at least one carries
+  a marker. Members show the marker, whether they are the base file,
   and their exact-duplicate group if any. Informational: nothing is pre-selected, contents
   may differ; a ticked member goes to quarantine with a stub naming the base file.
   `similar_names.enabled` toggles it.

@@ -11,8 +11,8 @@ safely. It reports what should not be there:
   empty folders and zero-size files;
 - exact duplicate files by content, grouped, with the oldest copy suggested as the original;
 - duplicate folders: identical folders and folders that share a large part of their content;
-- copy candidates by name: «Копия …», «… (2)», «… - копия», «…_v2», «…_final», «(Восстановлен)»
-  grouped with the base file (informational — contents may differ).
+- copy candidates by name in the same folder: «Копия …», «… (2)», «… - копия», «…_v2»,
+  «…_final», «(Восстановлен)» grouped with the base file (informational — contents may differ).
 
 **Nothing is ever deleted.** You tick what to remove in the web UI; `apply` moves those files
 into a dated quarantine folder inside the repository and leaves a short `<name>.removed.txt`

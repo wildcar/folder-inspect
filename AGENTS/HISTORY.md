@@ -4,6 +4,12 @@ Newest first. Each entry ≤5 lines using the format defined in `AGENTS.md`.
 
 ---
 
+## 2026-09-15 · Similar names per folder; Explorer reveal fix
+- What: `SimilarNames` groups within one folder only (key includes the parent path); `reveal` split into reveal_windows.go (hand-built command line `explorer.exe /select,"path"`) and reveal_other.go.
+- Why: owner feedback — repository-wide name groups were noisy; "show in file manager" opened Documents because Go quoted the whole `/select,<path>` argument.
+- Files: internal/detect/names.go, internal/ui/reveal_windows.go, internal/ui/reveal_other.go, internal/ui/server.go, tests, AGENTS/SPEC.md
+- Next: CI + release binaries.
+
 ## 2026-09-15 · Slice 4: similar names, quarantine command, quarantine view
 - What: `detect.SplitName`/`SimilarNames` (copy/version markers RU+EN → groups by base name + ext, base file first, dup cross-reference; findings, summary, console, CSV/XLSX/HTML, UI view with ticks → stub naming the base file); `action.ListBatches/Describe/Purge` + `quarantine list|show|purge -yes`; UI `/api/quarantine`, `/api/restore`, Quarantine view with Restore; report schema 4; config `similar_names`.
 - Why: owner confirmed slices 1–3b and asked for similar names and a quarantine command.

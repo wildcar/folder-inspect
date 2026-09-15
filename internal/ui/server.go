@@ -15,7 +15,6 @@ import (
 	"io/fs"
 	"net"
 	"net/http"
-	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
@@ -393,20 +392,7 @@ func (s *Server) insideRoots(p string) bool {
 	return false
 }
 
-func reveal(path string) error {
-	switch runtime.GOOS {
-	case "windows":
-		return exec.Command("explorer.exe", "/select,"+path).Start()
-	case "darwin":
-		return exec.Command("open", "-R", path).Start()
-	default:
-		dir := path
-		if st, err := os.Stat(path); err == nil && !st.IsDir() {
-			dir = filepath.Dir(path)
-		}
-		return exec.Command("xdg-open", dir).Start()
-	}
-}
+// reveal is implemented per OS: reveal_windows.go and reveal_other.go.
 
 // OpenBrowser opens url in the default browser; failures are not fatal.
 func OpenBrowser(url string) error {

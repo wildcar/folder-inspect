@@ -79,8 +79,9 @@ func TestEndToEndScan(t *testing.T) {
 	detect.Sort(findings)
 	rep := report.Build(res, findings, dups, dirs, names, cfg, "test")
 
-	if len(names.Groups) != 2 { // Договор (3 files, 2 copies) and Отчёт за март (base + "(1)")
-		t.Errorf("want 2 similar-name groups, got %+v", names.Groups)
+	// Only Отчёт за март + "(1)" share a folder; the contract copies live in other folders.
+	if len(names.Groups) != 1 || names.Groups[0].Name != "Отчёт за март.docx" {
+		t.Errorf("want 1 similar-name group (same folder only), got %+v", names.Groups)
 	}
 
 	if len(dups.Groups) != 3 {
@@ -94,7 +95,7 @@ func TestEndToEndScan(t *testing.T) {
 	}
 	want := map[detect.Category]int{
 		detect.Oversize: 5, detect.Archive: 1, detect.Distributive: 1, detect.Duplicate: 3,
-		detect.DirDuplicate: 1, detect.DirOverlap: 2, detect.SimilarName: 2,
+		detect.DirDuplicate: 1, detect.DirOverlap: 2, detect.SimilarName: 1,
 		detect.Junk: 4, detect.EmptyDir: 2, detect.EmptyFile: 1,
 	}
 	got := map[detect.Category]int{}

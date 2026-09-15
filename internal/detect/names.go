@@ -84,10 +84,12 @@ type NameResult struct {
 	Groups []NameGroup `json:"groups"`
 }
 
-// SimilarNames groups files by base name (markers stripped) and extension,
-// across all roots, and reports groups of two or more files where at least
-// one carries a marker. Two plain "Договор.docx" in different projects are
-// normal and are not reported. Purely informational: contents may differ.
+// SimilarNames groups files that sit in the same folder by base name
+// (markers stripped) and extension, and reports groups of two or more
+// files where at least one carries a marker. Grouping is per folder by the
+// owner's decision (2026-09-15): a copy usually lands next to its source,
+// and repository-wide grouping was too noisy. Purely informational:
+// contents may differ.
 func SimilarNames(files []scan.Entry, dups DupResult) NameResult {
 	dupOf := map[string]string{}
 	for _, g := range dups.Groups {
@@ -108,7 +110,7 @@ func SimilarNames(files []scan.Entry, dups DupResult) NameResult {
 		if base == "" {
 			continue
 		}
-		key := strings.ToLower(base) + "\x00" + strings.ToLower(ext)
+		key := strings.ToLower(filepath.Dir(f.Path)) + "\x00" + strings.ToLower(base) + "\x00" + strings.ToLower(ext)
 		groups[key] = append(groups[key], member{f, base, strings.Join(markers, ", ")})
 	}
 

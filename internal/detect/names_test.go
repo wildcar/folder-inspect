@@ -51,8 +51,9 @@ func TestSimilarNames(t *testing.T) {
 	files := []scan.Entry{
 		nf("A/Отчёт.docx", 100, t0),
 		nf("A/Копия Отчёт.docx", 100, t0.Add(time.Hour)),
-		nf("B/Отчёт (2).docx", 120, t0.Add(2*time.Hour)),
-		nf("B/отчёт - копия.DOCX", 90, t0), // case-insensitive name and extension
+		nf("A/Отчёт (2).docx", 120, t0.Add(2*time.Hour)),
+		nf("A/отчёт - копия.DOCX", 90, t0), // case-insensitive name and extension
+		nf("B/Отчёт (3).docx", 70, t0),     // another folder: its own group, and alone → not reported
 		nf("A/Смета_v2.xlsx", 50, t0),
 		nf("A/Смета_v3.xlsx", 55, t0.Add(time.Hour)), // two variants, no base
 		nf("A/Договор.docx", 10, t0),
@@ -64,7 +65,7 @@ func TestSimilarNames(t *testing.T) {
 	if len(r.Groups) != 2 {
 		t.Fatalf("want 2 groups, got %d: %+v", len(r.Groups), r.Groups)
 	}
-	g := r.Groups[0] // biggest variant size: Отчёт (100+120+90)
+	g := r.Groups[0] // biggest variant size: Отчёт in A (100+120+90)
 	if g.Name != "Отчёт.docx" || g.Count != 4 || g.Variants != 3 || g.Size != 310 {
 		t.Errorf("report group: %+v", g)
 	}
@@ -76,6 +77,11 @@ func TestSimilarNames(t *testing.T) {
 	}
 	if g.Files[0].DupGroup != "dupid" || g.Files[1].DupGroup != "" {
 		t.Errorf("dup group marks: %+v", g.Files)
+	}
+	for _, f := range g.Files {
+		if strings.Contains(f.Rel, "B/") {
+			t.Errorf("files from another folder must not join the group: %+v", f)
+		}
 	}
 	s := r.Groups[1]
 	if s.Name != "Смета.xlsx" || s.Base != "" || s.Variants != 2 || s.Files[0].Marker != "v3" {

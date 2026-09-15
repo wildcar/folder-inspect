@@ -33,7 +33,7 @@ rule-based `plan` command is the only listed item still open.
 ## Open questions
 
 - Markers list: add `_итоговый`, `(старая версия)`, `- финал`? Collect from the owner's real names.
-- Should similar-name groups be limited to the same folder (less noise) or stay repository-wide (current)?
+- Explorer reveal fix (hand-built command line) needs the owner's confirmation on their machine.
 - Purge from the UI stays out by design; revisit only if colleagues ask.
 
 ## Deferred
