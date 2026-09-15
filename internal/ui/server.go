@@ -59,7 +59,84 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("/api/reveal", s.handleReveal)
 	mux.HandleFunc("/api/rescan", s.handleRescan)
 	mux.HandleFunc("/api/apply", s.handleApply)
+	mux.HandleFunc("/api/quarantine", s.handleQuarantine)
+	mux.HandleFunc("/api/restore", s.handleRestore)
 	return mux
+}
+
+type batchView struct {
+	Path     string    `json:"path"`
+	Dir      string    `json:"dir"`
+	Created  time.Time `json:"created"`
+	Items    int       `json:"items"`
+	Pending  int       `json:"pending"`
+	Restored int       `json:"restored"`
+	Size     int64     `json:"size"`
+	Status   string    `json:"status"`
+}
+
+// handleQuarantine lists the quarantine batches of every root.
+func (s *Server) handleQuarantine(w http.ResponseWriter, r *http.Request) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	dir := ""
+	if s.Report.Config != nil {
+		dir = s.Report.Config.Quarantine.Dir
+	}
+	out := []batchView{}
+	for _, root := range s.Report.Roots {
+		batches, err := action.ListBatches(root, dir)
+		if err != nil {
+			continue
+		}
+		for _, b := range batches {
+			out = append(out, batchView{Path: b.Path, Dir: b.Manifest.Dir, Created: b.Manifest.Created,
+				Items: b.Items, Pending: b.Pending, Restored: b.Restored, Size: b.Size, Status: b.Status})
+		}
+	}
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	json.NewEncoder(w).Encode(out)
+}
+
+type restoreResponse struct {
+	Restored int              `json:"restored"`
+	Problems []action.Problem `json:"problems"`
+}
+
+// handleRestore brings one batch back. The manifest must lie inside a root.
+func (s *Server) handleRestore(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "POST only", http.StatusMethodNotAllowed)
+		return
+	}
+	var req struct {
+		Manifest string `json:"manifest"`
+	}
+	if err := json.NewDecoder(io.LimitReader(r.Body, 1<<16)).Decode(&req); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if !s.insideRoots(req.Manifest) || filepath.Base(req.Manifest) != action.ManifestName {
+		http.Error(w, "manifest is outside the scanned folders", http.StatusForbidden)
+		return
+	}
+	m, err := action.LoadManifest(req.Manifest)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	res, err := action.Restore(m, action.RestoreOptions{})
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if res.Problems == nil {
+		res.Problems = []action.Problem{}
+	}
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	json.NewEncoder(w).Encode(restoreResponse{Restored: res.Restored, Problems: res.Problems})
 }
 
 type rescanResponse struct {

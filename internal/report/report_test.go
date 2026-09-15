@@ -65,11 +65,16 @@ func TestBuildSummarisesDuplicatesAsGroups(t *testing.T) {
 		Groups:   []detect.DirGroup{{ID: "d1", Size: 1000, Count: 2, Wasted: 1000, Dirs: make([]detect.DupDir, 2)}},
 		Overlaps: []detect.OverlapPair{{SharedBytes: 300, SharedFiles: 2, Ratio: 0.6}, {SharedBytes: 200, SharedFiles: 2, Ratio: 0.5}},
 	}
+	names := detect.NameResult{Groups: []detect.NameGroup{{ID: "n1", Name: "x.docx", Count: 2, Variants: 1, Size: 40, Files: make([]detect.NameFile, 2)}}}
 	findings := append([]detect.Finding{{Category: detect.Junk, Size: 7}}, dups.Findings()...)
 	findings = append(findings, dirs.Findings()...)
-	r := Build(res, findings, dups, dirs, config.Default(), "t")
-	if len(r.Summary) != 4 {
+	findings = append(findings, names.Findings()...)
+	r := Build(res, findings, dups, dirs, names, config.Default(), "t")
+	if len(r.Summary) != 5 {
 		t.Fatalf("summary: %+v", r.Summary)
+	}
+	if r.Summary[3].Category != detect.SimilarName || r.Summary[3].Count != 1 || r.Summary[3].Size != 40 {
+		t.Errorf("similar-name summary must be groups/variant size: %+v", r.Summary[3])
 	}
 	if r.Summary[0].Category != detect.Duplicate || r.Summary[0].Count != 2 || r.Summary[0].Size != 210 {
 		t.Errorf("duplicate summary must be groups/wasted: %+v", r.Summary[0])
@@ -80,8 +85,8 @@ func TestBuildSummarisesDuplicatesAsGroups(t *testing.T) {
 	if r.Summary[2].Category != detect.DirOverlap || r.Summary[2].Count != 2 || r.Summary[2].Size != 500 {
 		t.Errorf("overlap summary must be pairs/shared: %+v", r.Summary[2])
 	}
-	if r.Summary[3].Category != detect.Junk || r.Summary[3].Count != 1 {
-		t.Errorf("junk summary: %+v", r.Summary[3])
+	if r.Summary[4].Category != detect.Junk || r.Summary[4].Count != 1 {
+		t.Errorf("junk summary: %+v", r.Summary[4])
 	}
 	if Percent(0.896) != "90%" || Percent(1) != "100%" {
 		t.Error("Percent rounding")

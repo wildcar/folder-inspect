@@ -128,6 +128,25 @@ func XLSX(r *report.Report, w io.Writer) error {
 		return err
 	}
 
+	// Similar names
+	names := i18n.T("sheet.similar_names")
+	rows = [][]any{{
+		i18n.T("col.group"), i18n.T("col.name"), i18n.T("col.marker"), i18n.T("col.path"),
+		i18n.T("col.size_bytes"), i18n.T("col.size"), i18n.T("col.mtime"), i18n.T("col.dup_group"),
+	}}
+	for _, g := range r.SimilarNames {
+		for _, x := range g.Files {
+			marker := x.Marker
+			if x.IsBase {
+				marker = "*"
+			}
+			rows = append(rows, []any{g.ID, g.Name, marker, x.Path, x.Size, report.HumanSize(x.Size), report.FormatTime(x.ModTime), x.DupGroup})
+		}
+	}
+	if err := newTable(f, names, rows, bold, []float64{14, 30, 16, 80, 14, 12, 17, 14}); err != nil {
+		return err
+	}
+
 	// Top files / folders
 	for _, top := range []struct {
 		sheet string

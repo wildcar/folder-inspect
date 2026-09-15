@@ -22,7 +22,8 @@ import (
 // SchemaVersion changes when the JSON layout changes incompatibly.
 // 2: added duplicates, findings[].group, stats.hashed*.
 // 3: added dir_duplicates, dir_overlaps.
-const SchemaVersion = 3
+// 4: added similar_names.
+const SchemaVersion = 4
 
 // Item is a path with a size, used for the top lists.
 type Item struct {
@@ -68,6 +69,7 @@ type Report struct {
 	Duplicates    []detect.DupGroup    `json:"duplicates"`
 	DirDuplicates []detect.DirGroup    `json:"dir_duplicates"`
 	DirOverlaps   []detect.OverlapPair `json:"dir_overlaps"`
+	SimilarNames  []detect.NameGroup   `json:"similar_names"`
 	TopFiles      []Item               `json:"top_files"`
 	TopDirs       []Item               `json:"top_dirs"`
 	Errors        []scan.Error         `json:"errors"`
@@ -75,9 +77,9 @@ type Report struct {
 }
 
 // Build assembles the report from a scan, its findings (which should
-// already include dups.Findings() and dirs.Findings()) and the duplicate
+// already include the Findings() of dups, dirs and names) and the group
 // detection results.
-func Build(res *scan.Result, findings []detect.Finding, dups detect.DupResult, dirs detect.DirDupResult, cfg *config.Config, version string) *Report {
+func Build(res *scan.Result, findings []detect.Finding, dups detect.DupResult, dirs detect.DirDupResult, names detect.NameResult, cfg *config.Config, version string) *Report {
 	r := &Report{
 		Schema:        SchemaVersion,
 		Tool:          "folder-inspect",
@@ -90,8 +92,12 @@ func Build(res *scan.Result, findings []detect.Finding, dups detect.DupResult, d
 		Duplicates:    dups.Groups,
 		DirDuplicates: dirs.Groups,
 		DirOverlaps:   dirs.Overlaps,
+		SimilarNames:  names.Groups,
 		Errors:        append(append([]scan.Error{}, res.Errors...), dups.Errors...),
 		Skipped:       res.Skipped,
+	}
+	if r.SimilarNames == nil {
+		r.SimilarNames = []detect.NameGroup{}
 	}
 	if r.Findings == nil {
 		r.Findings = []detect.Finding{}
@@ -147,6 +153,13 @@ func Build(res *scan.Result, findings []detect.Finding, dups detect.DupResult, d
 			s.Size += o.SharedBytes
 		}
 		byCat[detect.DirOverlap] = s
+	}
+	if len(names.Groups) > 0 {
+		s := &CategorySummary{Category: detect.SimilarName, Count: len(names.Groups)}
+		for _, g := range names.Groups {
+			s.Size += g.Size
+		}
+		byCat[detect.SimilarName] = s
 	}
 	r.Summary = []CategorySummary{}
 	for _, c := range detect.Categories {

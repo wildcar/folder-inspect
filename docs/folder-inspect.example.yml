@@ -73,6 +73,11 @@ folder_duplicates:
   min_overlap: 0.5   # 50 % of the smaller folder
   min_files: 2       # at least this many shared files
 
+# Copy / version candidates by name: "Копия X", "X (2)", "X - копия", "X_v2",
+# "X_final", "X (Восстановлен)"... grouped with the base file. Informational.
+similar_names:
+  enabled: true
+
 # Extensions explained as "video" in stubs (they fall under the "huge" size rule).
 videos: [mp4, mkv, avi, mov, wmv, m4v, mpg, mpeg, webm, 3gp, insv, lrv, m4a, mp3, wav, flac]
 
@@ -82,7 +87,7 @@ videos: [mp4, mkv, avi, mov, wmv, m4v, mpg, mpeg, webm, 3gp, insv, lrv, m4a, mp3
 quarantine:
   dir: .folder-inspect/quarantine   # relative to the scanned root
   stubs: true                       # leave "<name>.removed.txt" where a file was
-  stub_categories: [oversize, archive, distributive, duplicate, dir-duplicate]
+  stub_categories: [oversize, archive, distributive, duplicate, dir-duplicate, similar-name]
   # Optional: your own reason text per category (replaces the built-in paragraph).
   # stub_texts:
   #   archive: "Old versions are available in the change history; archives are not stored here."

@@ -7,36 +7,34 @@ the live picture here; push detail into `AGENTS/SPEC.md` (the contract) and `AGE
 ## Goal
 
 Build folder-inspect: a Go tool that finds oversized files (graded by kind), archives and
-distributives, junk, duplicate files and folders in project document repositories, shows them
-in a local web UI with exports, and cleans up via quarantine with explanatory stubs.
-Contract: `AGENTS/SPEC.md` v0.2 — all MVP requirements FR-1…FR-45 are implemented except FR-20
-(near-duplicate names) and the rule-based `plan` command.
+distributives, junk, duplicate files and folders, copy candidates by name in project document
+repositories, shows them in a local web UI with exports, and cleans up via quarantine with
+explanatory stubs. Contract: `AGENTS/SPEC.md` v0.2 — every FR-1…FR-46 is implemented; the
+rule-based `plan` command is the only listed item still open.
 
 ## Now
 
-- Slice 3b shipped 2026-09-15: `apply` (dry-run, dated quarantine batches with manifest,
-  duplicate re-verification), `restore`, per-file stubs `<name>.removed.txt` with reasons by
-  category and configurable texts, Rescan and Apply/Check buttons in the UI, `pipeline` package.
-- Verified end to end on the demo fixture: UI → plan (archive, distributive, 2 duplicate
-  copies) → "Check plan" → CLI `apply` → 4 moved, 4 stubs, manifest → UI Rescan reflects it →
-  CLI `restore` → everything back, stubs removed, second restore is a no-op.
-- Build/vet/gofmt/tests green (11 packages). Not yet applied on the owner's real repositories.
+- Slice 4 shipped 2026-09-15: similar names (RU/EN copy and version markers, groups with the
+  base file marked, exact-duplicate cross-reference), `quarantine list|show|purge` (purge needs
+  `-yes`, batch-folder-only, manifest kept), Quarantine view with Restore in the UI, report
+  schema 4. Owner confirmed slices 1–3b work on real repositories.
+- Verified on the demo fixture: console shows 2 similar-name groups; manual plan with an
+  archive and a "(1)" copy → apply → stub for the copy names the base file → list/show →
+  purge preview → purge -yes → second purge refused.
+- Build/vet/gofmt/tests green (11 packages).
 
 ## Next
 
-1. Ask the owner to try the full loop on a real repository (scan → ui → apply → restore) and
-   review the stub wording; adjust `stub.*` texts or add `quarantine.stub_texts` examples.
-2. Near-duplicate names (FR-20): «Копия …», «… (2)», «Copy of …», `_v2/_final` as a soft category.
-3. `quarantine` command: list batches, show what is inside, empty a batch after confirmation (FR-44).
-4. GitHub Actions: build + test on push, release binaries (windows/amd64, linux/amd64) on tag.
-5. Smaller: Windows OS-locale detection, `**` globs, `plan` from rules ("all junk").
+1. Owner review of the similar-name markers on real data (false positives?) and the stub text for copies.
+2. GitHub Actions: build + test on push; release binaries (windows/amd64, linux/amd64) on tag; version via ldflags.
+3. `plan` from rules without the UI ("all junk", "all archives") for scripted clean-ups.
+4. Smaller: Windows OS-locale detection, `**` globs, per-folder summary note as an option.
 
 ## Open questions
 
-- Stub file name: `<name>.removed.txt` (current) vs. the owner's per-folder notes — keep per file
-  as requested; a per-folder summary note could be added later.
-- Should `apply` from the UI require typing the number of items instead of a confirm dialog?
-- Overlap thresholds (50 % / 2 files) on real data — 27 pairs looked plausible; revisit after use.
+- Markers list: add `_итоговый`, `(старая версия)`, `- финал`? Collect from the owner's real names.
+- Should similar-name groups be limited to the same folder (less noise) or stay repository-wide (current)?
+- Purge from the UI stays out by design; revisit only if colleagues ask.
 
 ## Deferred
 

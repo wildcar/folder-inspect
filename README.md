@@ -11,17 +11,19 @@ safely. It reports what should not be there:
   empty folders and zero-size files;
 - exact duplicate files by content, grouped, with the oldest copy suggested as the original;
 - duplicate folders: identical folders and folders that share a large part of their content;
-- copy candidates by name («Копия …», «… (2)», «Copy of …») — *planned*.
+- copy candidates by name: «Копия …», «… (2)», «… - копия», «…_v2», «…_final», «(Восстановлен)»
+  grouped with the base file (informational — contents may differ).
 
 **Nothing is ever deleted.** You tick what to remove in the web UI; `apply` moves those files
 into a dated quarantine folder inside the repository and leaves a short `<name>.removed.txt`
 note where each file was: what was removed, when, why (archive, distributive, video, oversized,
 or a duplicate with the relative path to the kept original) and how to bring it back.
-`restore` puts everything back and removes the notes. Not related to git.
+`restore` puts everything back and removes the notes; `quarantine list|show` inspects the
+batches, and only `quarantine purge -yes` deletes quarantined copies for good. Not related to git.
 
-Status: **all MVP features work** — scan, duplicates (files and folders), exports, web UI,
-apply/quarantine/restore. Stack: Go, single executable for Windows and Linux
-(see `docs/adr/0001-stack-and-interface.md`). License: MIT.
+Status: **all MVP features work** — scan, duplicates (files, folders, names), exports, web UI
+with rescan/apply/restore, CLI apply/restore/quarantine. Stack: Go, single executable for
+Windows and Linux (see `docs/adr/0001-stack-and-interface.md`). License: MIT.
 
 ## Run locally
 
@@ -52,6 +54,9 @@ dist/folder-inspect.exe report -format xlsx "D:\Проекты\.folder-inspect\r
 dist/folder-inspect.exe apply -dry-run "D:\Проекты\.folder-inspect\reports\plan-2026-09-15_150639.json"
 dist/folder-inspect.exe apply "D:\Проекты\.folder-inspect\reports\plan-2026-09-15_150639.json"
 dist/folder-inspect.exe restore -dry-run "D:\Проекты\.folder-inspect\quarantine\2026-09-15_153710\manifest.json"
+dist/folder-inspect.exe quarantine list "D:\Проекты"
+dist/folder-inspect.exe quarantine show "D:\Проекты\.folder-inspect\quarantine\2026-09-15_153710"
+dist/folder-inspect.exe quarantine purge -yes "D:\Проекты\.folder-inspect\quarantine\2026-09-15_153710"   # irreversible
 ```
 
 Useful flags: `scan -out <file>` (explicit report path; existing files are refused unless

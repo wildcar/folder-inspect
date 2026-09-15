@@ -54,6 +54,18 @@ func reason(a Action, e Entry, opt ApplyOptions, stubDir string) string {
 		return i18n.TL(lang, "stub.distributive")
 	case "junk":
 		return i18n.TL(lang, "stub.junk")
+	case "similar-name":
+		marker := ""
+		if f, ok := opt.Findings[a.Path]; ok {
+			marker = f.Rule
+		}
+		if marker == "" {
+			marker = "—"
+		}
+		if a.Original != "" {
+			return i18n.TLf(lang, "stub.similar-name", marker, relativeTo(stubDir, a.Original))
+		}
+		return i18n.TLf(lang, "stub.similar-name-nobase", marker)
 	case "oversize":
 		size := report.HumanSizeLang(e.Size, lang)
 		ext := strings.ToLower(strings.TrimPrefix(filepath.Ext(a.Path), "."))

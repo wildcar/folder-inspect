@@ -45,17 +45,18 @@ type Entry struct {
 
 // Manifest describes one quarantine batch: one per scanned root per apply.
 type Manifest struct {
-	Schema   int       `json:"schema"`
-	Tool     string    `json:"tool"`
-	Created  time.Time `json:"created"`
-	Plan     string    `json:"plan,omitempty"`
-	Report   string    `json:"report,omitempty"`
-	Root     string    `json:"root"`
-	Dir      string    `json:"dir"` // batch folder: <root>/<quarantine>/<ts>
-	Path     string    `json:"-"`   // where this manifest is stored
-	DryRun   bool      `json:"dry_run,omitempty"`
-	Entries  []Entry   `json:"entries"`
-	Problems []Problem `json:"problems"`
+	Schema   int        `json:"schema"`
+	Tool     string     `json:"tool"`
+	Created  time.Time  `json:"created"`
+	Plan     string     `json:"plan,omitempty"`
+	Report   string     `json:"report,omitempty"`
+	Root     string     `json:"root"`
+	Dir      string     `json:"dir"` // batch folder: <root>/<quarantine>/<ts>
+	Path     string     `json:"-"`   // where this manifest is stored
+	DryRun   bool       `json:"dry_run,omitempty"`
+	Purged   *time.Time `json:"purged,omitempty"` // set when the copies were deleted for good
+	Entries  []Entry    `json:"entries"`
+	Problems []Problem  `json:"problems"`
 }
 
 // ApplyOptions tunes Apply.

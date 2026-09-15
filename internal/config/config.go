@@ -54,10 +54,17 @@ type Config struct {
 	Duplicates DupConfig `yaml:"duplicates" json:"duplicates"`
 	// FolderDuplicates tunes identical / overlapping folder detection.
 	FolderDuplicates DirDupConfig `yaml:"folder_duplicates" json:"folder_duplicates"`
+	// SimilarNames toggles the copy/version-by-name detector.
+	SimilarNames SimilarNamesConfig `yaml:"similar_names" json:"similar_names"`
 	// Videos are extensions that get the "video" explanation in stubs.
 	Videos []string `yaml:"videos" json:"videos"`
 	// Quarantine tunes apply: where files go and which stubs are left.
 	Quarantine QuarantineConfig `yaml:"quarantine" json:"quarantine"`
+}
+
+// SimilarNamesConfig tunes the name-based copy detector.
+type SimilarNamesConfig struct {
+	Enabled bool `yaml:"enabled" json:"enabled"`
 }
 
 // QuarantineConfig tunes the clean-up step.
@@ -120,11 +127,12 @@ func Default() *Config {
 		TopN:             20,
 		Duplicates:       DupConfig{Enabled: true, MinSize: 1 * KB},
 		FolderDuplicates: DirDupConfig{Enabled: true, MinOverlap: 0.5, MinFiles: 2},
+		SimilarNames:     SimilarNamesConfig{Enabled: true},
 		Videos:           []string{"mp4", "mkv", "avi", "mov", "wmv", "m4v", "mpg", "mpeg", "webm", "3gp", "insv", "lrv", "m4a", "mp3", "wav", "flac"},
 		Quarantine: QuarantineConfig{
 			Dir:            ".folder-inspect/quarantine",
 			Stubs:          true,
-			StubCategories: []string{"oversize", "archive", "distributive", "duplicate", "dir-duplicate"},
+			StubCategories: []string{"oversize", "archive", "distributive", "duplicate", "dir-duplicate", "similar-name"},
 		},
 	}
 }

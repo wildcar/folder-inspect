@@ -4,6 +4,12 @@ Newest first. Each entry ≤5 lines using the format defined in `AGENTS.md`.
 
 ---
 
+## 2026-09-15 · Slice 4: similar names, quarantine command, quarantine view
+- What: `detect.SplitName`/`SimilarNames` (copy/version markers RU+EN → groups by base name + ext, base file first, dup cross-reference; findings, summary, console, CSV/XLSX/HTML, UI view with ticks → stub naming the base file); `action.ListBatches/Describe/Purge` + `quarantine list|show|purge -yes`; UI `/api/quarantine`, `/api/restore`, Quarantine view with Restore; report schema 4; config `similar_names`.
+- Why: owner confirmed slices 1–3b and asked for similar names and a quarantine command.
+- Files: internal/detect/names.go, internal/action/quarantine.go, cmd/folder-inspect/cmd_quarantine.go, internal/ui/server.go, internal/ui/static/app.js, internal/report/*, internal/export/*, internal/pipeline/pipeline.go, internal/config/config.go, internal/i18n/i18n.go, AGENTS/SPEC.md, AGENTS.md, README.md
+- Next: owner review of markers on real data; CI + release binaries.
+
 ## 2026-09-15 · Slice 3b: apply, quarantine, restore, stubs, rescan
 - What: `internal/action` apply.go (dated quarantine batches per root, manifest, duplicate re-verification by hash, deeper-paths-first, dry-run), restore.go, stub.go (`<name>.removed.txt` with category reasons, RU/EN via `i18n.TL`, custom `quarantine.stub_texts`), options.go; `pipeline.Run` shared by scan and UI; UI: Rescan, Check plan, Apply plan (confirm → result screen → auto rescan), plan pruning after rescan; CLI `apply`, `restore`; config `quarantine`, `videos`.
 - Why: owner asked for slice 3b plus rescan from the UI and stubs for every quarantined file, modelled on their SVN notes ("Distributives were removed…").

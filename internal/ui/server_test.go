@@ -32,8 +32,9 @@ func newServer(t *testing.T) (*Server, string) {
 	findings := detect.Run(res, cfg)
 	dups := detect.Duplicates(res.Files, detect.DupOptions{MinSize: 1024})
 	dirs := detect.DuplicateDirs(res, dups, detect.DirDupOptions{})
+	names := detect.SimilarNames(res.Files, dups)
 	findings = append(findings, dups.Findings()...)
-	rep := report.Build(res, findings, dups, dirs, cfg, "test")
+	rep := report.Build(res, findings, dups, dirs, names, cfg, "test")
 	dir := report.DefaultDir(res.Roots[0])
 	os.MkdirAll(dir, 0o755)
 	rp := filepath.Join(dir, "report-test.json")
@@ -224,6 +225,53 @@ func TestApplyEndpoint(t *testing.T) {
 	code, _, _ = post(applyRequest{Actions: []action.Action{{Op: action.OpQuarantine, Path: filepath.Join(t.TempDir(), "x")}}})
 	if code != 403 {
 		t.Errorf("outside path: %d", code)
+	}
+}
+
+func TestQuarantineAndRestoreEndpoints(t *testing.T) {
+	s, root := newServer(t)
+	ts := httptest.NewServer(s.Handler())
+	defer ts.Close()
+	// nothing yet
+	resp, _ := http.Get(ts.URL + "/api/quarantine")
+	var list []batchView
+	json.NewDecoder(resp.Body).Decode(&list)
+	if len(list) != 0 {
+		t.Fatalf("empty quarantine expected: %+v", list)
+	}
+	// apply one archive
+	archive := filepath.Join(root, "Проект B", "Старое", "Архив проекта 2024.zip")
+	b, _ := json.Marshal(applyRequest{Actions: []action.Action{{Op: action.OpQuarantine, Path: archive, Category: "archive", Size: 16384}}})
+	resp, _ = http.Post(ts.URL+"/api/apply", "application/json", bytes.NewReader(b))
+	if resp.StatusCode != 200 {
+		t.Fatal("apply failed")
+	}
+	resp, _ = http.Get(ts.URL + "/api/quarantine")
+	json.NewDecoder(resp.Body).Decode(&list)
+	if len(list) != 1 || list[0].Pending != 1 || list[0].Status != "active" || list[0].Size != 16384 {
+		t.Fatalf("quarantine list: %+v", list)
+	}
+	// restore via the API
+	rb, _ := json.Marshal(map[string]string{"manifest": list[0].Path})
+	resp, _ = http.Post(ts.URL+"/api/restore", "application/json", bytes.NewReader(rb))
+	body, _ := readAll(resp)
+	var rr restoreResponse
+	json.Unmarshal([]byte(body), &rr)
+	if resp.StatusCode != 200 || rr.Restored != 1 || len(rr.Problems) != 0 || !exists(archive) || exists(archive+".removed.txt") {
+		t.Errorf("restore: %d %s", resp.StatusCode, body)
+	}
+	resp, _ = http.Get(ts.URL + "/api/quarantine")
+	json.NewDecoder(resp.Body).Decode(&list)
+	if list[0].Status != "restored" || list[0].Pending != 0 {
+		t.Errorf("after restore: %+v", list)
+	}
+	// outside / wrong file refused
+	for _, bad := range []string{filepath.Join(t.TempDir(), "manifest.json"), filepath.Join(root, "Проект A", "Thumbs.db")} {
+		rb, _ := json.Marshal(map[string]string{"manifest": bad})
+		resp, _ = http.Post(ts.URL+"/api/restore", "application/json", bytes.NewReader(rb))
+		if resp.StatusCode != 403 {
+			t.Errorf("%s: %d", bad, resp.StatusCode)
+		}
 	}
 }
 

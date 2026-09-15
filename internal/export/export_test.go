@@ -32,10 +32,12 @@ func fixtureReport(t *testing.T) *report.Report {
 	findings := detect.Run(res, cfg)
 	dups := detect.Duplicates(res.Files, detect.DupOptions{MinSize: int64(cfg.Duplicates.MinSize)})
 	dirs := detect.DuplicateDirs(res, dups, detect.DirDupOptions{})
+	names := detect.SimilarNames(res.Files, dups)
 	findings = append(findings, dups.Findings()...)
 	findings = append(findings, dirs.Findings()...)
+	findings = append(findings, names.Findings()...)
 	detect.Sort(findings)
-	return report.Build(res, findings, dups, dirs, cfg, "test")
+	return report.Build(res, findings, dups, dirs, names, cfg, "test")
 }
 
 func TestParseList(t *testing.T) {
@@ -92,7 +94,7 @@ func TestHTML(t *testing.T) {
 		t.Fatal(err)
 	}
 	s := buf.String()
-	for _, want := range []string{"<!doctype html>", "Отчёт folder-inspect", "Большие файлы", "Дубликаты", "Встреча 2026-03-01.mp4", `class="keep"`, "Самые тяжёлые папки", "Папки-дубликаты", "Приложения (копия)", "Папки с общим содержимым", "Для отправки"} {
+	for _, want := range []string{"<!doctype html>", "Отчёт folder-inspect", "Большие файлы", "Дубликаты", "Встреча 2026-03-01.mp4", `class="keep"`, "Самые тяжёлые папки", "Папки-дубликаты", "Приложения (копия)", "Папки с общим содержимым", "Для отправки", "Похожие имена", "Отчёт за март (1).docx"} {
 		if !strings.Contains(s, want) {
 			t.Errorf("HTML lacks %q", want)
 		}
@@ -121,7 +123,7 @@ func TestXLSX(t *testing.T) {
 	}
 	defer f.Close()
 	sheets := f.GetSheetList()
-	want := []string{"Сводка", "Находки", "Дубликаты", "Папки-дубликаты", "Общее содержимое", "Самые большие файлы", "Самые тяжёлые папки"}
+	want := []string{"Сводка", "Находки", "Дубликаты", "Папки-дубликаты", "Общее содержимое", "Похожие имена", "Самые большие файлы", "Самые тяжёлые папки"}
 	if len(sheets) != len(want) {
 		t.Fatalf("sheets: %v", sheets)
 	}
@@ -148,6 +150,10 @@ func TestXLSX(t *testing.T) {
 	ovRows, _ := f.GetRows("Общее содержимое")
 	if len(ovRows) != 3 { // header + 2 pairs
 		t.Errorf("overlap sheet rows: %d", len(ovRows))
+	}
+	nmRows, _ := f.GetRows("Похожие имена")
+	if len(nmRows) != 6 { // header + Договор ×3 + Отчёт за март ×2
+		t.Errorf("similar names sheet rows: %d", len(nmRows))
 	}
 	if v, _ := f.GetCellValue("Сводка", "A1"); v != "Показатель" {
 		t.Errorf("summary A1 = %q", v)

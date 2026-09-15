@@ -28,6 +28,7 @@ Usage:
   folder-inspect report [options] <report.json>          re-print a saved report or export it (csv, xlsx, html)
   folder-inspect apply [options] <plan.json>             move planned items to quarantine, leave stubs (-dry-run to preview)
   folder-inspect restore [options] <manifest | folder>   bring a quarantine batch back
+  folder-inspect quarantine list|show|purge ...          inspect quarantine batches; purge deletes for good (-yes)
   folder-inspect fixture [options] <folder>              generate a demo "dirty repository" for trying the tool
   folder-inspect version                                 print the version
 
@@ -53,6 +54,8 @@ func main() {
 		code = runApply(os.Args[2:])
 	case "restore":
 		code = runRestore(os.Args[2:])
+	case "quarantine":
+		code = runQuarantine(os.Args[2:])
 	case "fixture":
 		code = runFixture(os.Args[2:])
 	case "version", "-v", "--version":

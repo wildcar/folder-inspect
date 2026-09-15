@@ -78,6 +78,8 @@ func (r *Report) PrintConsole(w io.Writer, opt ConsoleOptions) {
 				r.printDirDuplicates(w, opt.PerCategory)
 			case detect.DirOverlap:
 				r.printOverlaps(w, opt.PerCategory)
+			case detect.SimilarName:
+				r.printSimilarNames(w, opt.PerCategory)
 			default:
 				r.printCategory(w, c, opt.PerCategory)
 			}
@@ -201,6 +203,40 @@ func (r *Report) printOverlaps(w io.Writer, limit int) {
 		}
 		fmt.Fprintf(w, "  %10s  %s  <->  %s\n", HumanSize(o.SharedBytes), displayPath(o.A.Rel, o.A.Path), displayPath(o.B.Rel, o.B.Path))
 		fmt.Fprintf(w, "              %s (%s / %s)\n", OverlapLine(o), Percent(o.RatioA), Percent(o.RatioB))
+	}
+	fmt.Fprintln(w)
+}
+
+func (r *Report) printSimilarNames(w io.Writer, limit int) {
+	if len(r.SimilarNames) == 0 {
+		return
+	}
+	var variants int
+	var size int64
+	for _, g := range r.SimilarNames {
+		variants += g.Variants
+		size += g.Size
+	}
+	fmt.Fprintln(w, i18n.Tf("names.header", CategoryName(detect.SimilarName), len(r.SimilarNames), variants, HumanSize(size)))
+	fmt.Fprintln(w, "  "+i18n.T("names.legend"))
+	for i, g := range r.SimilarNames {
+		if i >= limit {
+			fmt.Fprintln(w, "  "+i18n.Tf("scan.more", len(r.SimilarNames)-i))
+			break
+		}
+		fmt.Fprintf(w, "  %s  (%d)  [%s]\n", g.Name, g.Count, g.ID)
+		for _, f := range g.Files {
+			mark := " "
+			tag := f.Marker
+			if f.IsBase {
+				mark = "*"
+				tag = i18n.T("names.base")
+			}
+			if f.DupGroup != "" {
+				tag += ", " + i18n.Tf("names.dup", f.DupGroup)
+			}
+			fmt.Fprintf(w, "    %s %10s  %s  [%s]  (%s)\n", mark, HumanSize(f.Size), displayPath(f.Rel, f.Path), tag, FormatTime(f.ModTime))
+		}
 	}
 	fmt.Fprintln(w)
 }

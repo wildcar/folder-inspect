@@ -43,8 +43,21 @@ type overlapRow struct {
 	A, B, Shared, Line, RatioA, RatioB string
 }
 
+type nameFileRow struct {
+	Path, MTime, Tag string
+	Base             bool
+}
+
+type nameGroupRow struct {
+	Name, ID string
+	Count    int
+	Files    []nameFileRow
+}
+
 type htmlView struct {
 	L           map[string]string
+	Names       []nameGroupRow
+	NamesLine   string
 	Title       string
 	ToolLine    string
 	Roots       []string
@@ -66,23 +79,24 @@ type htmlView struct {
 func newHTMLView(r *report.Report) htmlView {
 	v := htmlView{
 		L: map[string]string{
-			"summary":   i18n.T("scan.summary"),
-			"category":  i18n.T("scan.category"),
-			"count":     i18n.T("scan.count"),
-			"size":      i18n.T("scan.size"),
-			"nothing":   i18n.T("scan.nothing"),
-			"topFiles":  i18n.T("scan.top_files"),
-			"topDirs":   i18n.T("scan.top_dirs"),
-			"errors":    i18n.T("html.errors"),
-			"skipped":   i18n.T("html.skipped"),
-			"path":      i18n.T("col.path"),
-			"mtime":     i18n.T("col.mtime"),
-			"error":     i18n.T("col.error"),
-			"legend":    i18n.T("dup.legend"),
-			"generated": i18n.Tf("html.generated", report.FormatTime(r.Finished)),
-			"related":   i18n.T("col.related"),
-			"ratioA":    i18n.T("col.ratio_a"),
-			"ratioB":    i18n.T("col.ratio_b"),
+			"summary":     i18n.T("scan.summary"),
+			"category":    i18n.T("scan.category"),
+			"count":       i18n.T("scan.count"),
+			"size":        i18n.T("scan.size"),
+			"nothing":     i18n.T("scan.nothing"),
+			"topFiles":    i18n.T("scan.top_files"),
+			"topDirs":     i18n.T("scan.top_dirs"),
+			"errors":      i18n.T("html.errors"),
+			"skipped":     i18n.T("html.skipped"),
+			"path":        i18n.T("col.path"),
+			"mtime":       i18n.T("col.mtime"),
+			"error":       i18n.T("col.error"),
+			"legend":      i18n.T("dup.legend"),
+			"generated":   i18n.Tf("html.generated", report.FormatTime(r.Finished)),
+			"related":     i18n.T("col.related"),
+			"ratioA":      i18n.T("col.ratio_a"),
+			"ratioB":      i18n.T("col.ratio_b"),
+			"namesLegend": i18n.T("names.legend"),
 		},
 		Title:    i18n.T("html.title"),
 		ToolLine: r.Tool + " " + r.Version,
@@ -150,6 +164,27 @@ func newHTMLView(r *report.Report) htmlView {
 	}
 	if len(r.DirOverlaps) > 0 {
 		v.OverlapLine = i18n.Tf("overlap.header", report.CategoryName(detect.DirOverlap), len(r.DirOverlaps), report.HumanSize(shared))
+	}
+	var variants int
+	var nsize int64
+	for _, g := range r.SimilarNames {
+		variants += g.Variants
+		nsize += g.Size
+		row := nameGroupRow{Name: g.Name, ID: g.ID, Count: g.Count}
+		for _, f := range g.Files {
+			tag := f.Marker
+			if f.IsBase {
+				tag = i18n.T("names.base")
+			}
+			if f.DupGroup != "" {
+				tag += ", " + i18n.Tf("names.dup", f.DupGroup)
+			}
+			row.Files = append(row.Files, nameFileRow{f.Path, report.FormatTime(f.ModTime), tag, f.IsBase})
+		}
+		v.Names = append(v.Names, row)
+	}
+	if len(r.SimilarNames) > 0 {
+		v.NamesLine = i18n.Tf("names.header", report.CategoryName(detect.SimilarName), len(r.SimilarNames), variants, report.HumanSize(nsize))
 	}
 	for _, it := range r.TopFiles {
 		v.TopFiles = append(v.TopFiles, row{Size: report.HumanSize(it.Size), Path: it.Path})
@@ -267,6 +302,17 @@ var htmlTmpl = template.Must(template.New("report").Parse(`<!doctype html>
 <table><tr><th>{{.L.path}}</th><th>{{.L.related}}</th><th class="num">{{.L.size}}</th><th></th><th class="num">{{.L.ratioA}}</th><th class="num">{{.L.ratioB}}</th></tr>
 {{range .Overlaps}}<tr><td class="path">{{.A}}</td><td class="path">{{.B}}</td><td class="num">{{.Shared}}</td><td class="tag">{{.Line}}</td><td class="num">{{.RatioA}}</td><td class="num">{{.RatioB}}</td></tr>{{end}}
 </table>
+{{end}}
+
+{{if .Names}}
+<h2>{{.NamesLine}}</h2>
+<div class="muted">{{.L.namesLegend}}</div>
+{{range .Names}}
+<div class="group">
+  <div class="head">{{.Name}} · {{.Count}} · <span class="muted">{{.ID}}</span></div>
+  <ul>{{range .Files}}<li{{if .Base}} class="keep"{{end}}>{{.Path}} <span class="muted">[{{.Tag}}] ({{.MTime}})</span></li>{{end}}</ul>
+</div>
+{{end}}
 {{end}}
 
 {{if .TopFiles}}

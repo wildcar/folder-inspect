@@ -106,11 +106,16 @@ folder-inspect scan <root...>
   the survivors, hashing in parallel. Across all scanned roots. Minimum size 1 KB
   (`duplicates.min_size`); `duplicates.enabled: false` or `-no-dups` skips it. Groups carry
   a stable id (hash prefix), size, count, wasted bytes and members sorted by mtime.
-- FR-20 ⏳ Near-duplicates by name ("copy candidates"), reported separately and never
-  auto-actionable unless content also matches. Patterns (case-insensitive, RU + EN):
-  `Копия <name>`, `<name> - копия`, `<name> - копия (N)`, `Copy of <name>`, `<name> (N)`,
-  `<name> - Copy`, `<name>_v2 / _v3 / _final / _старый / _old / _new / _новый`,
-  `<name> (Восстановлен)` / `(Recovered)`. ❓ list to be refined with the owner.
+- FR-20 ✅ Similar names ("copy candidates"): files grouped by base name + extension once
+  copy/version markers are stripped (case-insensitive, RU + EN, repeated until none match):
+  prefixes `Копия `, `Copy of `; suffixes `- копия`, `- копия (N)`, `- Copy (N)`, `(N)`,
+  `(Восстановлен)`, `(Recovered)`, `(final)`…, `_v2` / ` v3.1` / `_версия 2`, `_final`,
+  `_итог`, `_старый`, `_old`, `_new`, `_новый`, `_backup`, `_draft`… Reported only when a
+  group has ≥ 2 files and at least one carries a marker (two plain "Договор.docx" in
+  different projects are normal). Members show the marker, whether they are the base file,
+  and their exact-duplicate group if any. Informational: nothing is pre-selected, contents
+  may differ; a ticked member goes to quarantine with a stub naming the base file.
+  `similar_names.enabled` toggles it.
 - FR-21 ✅ For every duplicate group show the wasted size. The canonical file (the one that
   stays) is **picked by the user in the web UI** (radio per group, pre-selected: `suggested`
   = oldest by modification time, shown with `*`/★ in console and exports). Copies are ticked
@@ -191,11 +196,18 @@ folder-inspect scan <root...>
   Language: `-lang` / UI language (RU default); `quarantine.stub_texts` in the config
   replaces the reason paragraph per category with the owner's own wording. No hard links or
   symlinks are created (owner decision 2026-09-15). ❓ Optional Windows `.lnk` — only if asked.
-- FR-44 ✅ The tool never deletes user files. ⏳ Emptying the quarantine is an explicit separate
-  command with confirmation (not built yet; today the batch folder is removed by hand).
+- FR-44 ✅ The tool never deletes user files through scan/apply. Permanent deletion exists only
+  as `quarantine purge`, which needs the explicit `-yes` flag (without it: preview + the exact
+  command), deletes only paths inside the batch folder, marks the manifest `purged`, keeps it
+  and the stubs as the record, and is refused a second time. Not available from the UI.
+  `quarantine list <root>` shows batches (date, status active/partial/restored/purged, pending
+  items, size, folder); `quarantine show <batch>` lists entries.
 - FR-45 ✅ Rescan from the UI: "Rescan" re-runs the pipeline with the report's effective config
   (same roots, thresholds, exclusions), saves a new report in the reports folder and switches
   to it; after a real apply the UI rescans automatically.
+- FR-46 ✅ Quarantine in the UI: a "Quarantine" view lists the batches of every root with
+  status and pending size; "Restore" (after a confirmation) brings a batch back and rescans.
+  Purge is deliberately CLI-only.
 
 ### Non-functional
 - NFR-1 ⏳ Tens of thousands of files scan in well under a minute on a local SSD; hashing is
@@ -209,12 +221,12 @@ folder-inspect scan <root...>
 ```
 cmd/folder-inspect/     entry point; cmd_scan.go, cmd_report.go, cmd_fixture.go (planned: ui, plan, apply, restore)
 internal/scan/          walker, file index with per-folder aggregates
-internal/detect/        detectors: size.go, ext.go (archives, distributives), junk.go, empty.go, dup.go (the only one with I/O) (planned: names.go)
+internal/detect/        detectors: size.go, ext.go (archives, distributives), junk.go, empty.go, dup.go (the only one with I/O), dirdup.go, names.go (SplitName + SimilarNames)
 internal/report/        Report model + JSON I/O, console summary, overwrite policy, shared formatting
 internal/export/        csv.go, xlsx.go (excelize), html.go (html/template, self-contained)
 internal/pipeline/      Run(roots, cfg): walk → detectors → duplicates → folder duplicates → report; used by scan and the UI's rescan
 internal/ui/            localhost server (server.go: /api/report, /api/export, /api/plan, /api/reveal, /api/rescan, /api/apply) + static/ (index.html, app.js, style.css, embedded)
-internal/action/        plan.go (Plan/Action, validation, plan-<ts>.json), apply.go (quarantine batches, manifest, re-verification), stub.go (<name>.removed.txt texts), restore.go, options.go (config → ApplyOptions)
+internal/action/        plan.go (Plan/Action, validation, plan-<ts>.json), apply.go (quarantine batches, manifest, re-verification), stub.go (<name>.removed.txt texts), restore.go, quarantine.go (ListBatches, Describe, Purge), options.go (config → ApplyOptions)
 internal/config/        defaults, YAML loading, ByteSize
 internal/glob/          case-insensitive glob matching
 internal/i18n/          RU / EN message catalogs
@@ -241,8 +253,9 @@ docs/                   ADRs, questionnaire, example config
 - ✅ Slice 3b (2026-09-15): `apply` (dry-run, quarantine batches with manifest, duplicate
   re-verification), `restore`, per-file stubs with category reasons and custom texts, Rescan
   and Apply from the UI (FR-40–45).
-- ⏳ Next: near-duplicate names (FR-20), quarantine listing/emptying command, `plan` from
-  rules, OS-locale detection, `**` globs, CI and releases.
+- ✅ Slice 4 (2026-09-15): similar names (FR-20), `quarantine list|show|purge` (FR-44),
+  Quarantine view with Restore in the UI (FR-46). Report schema 4.
+- ⏳ Next: `plan` from rules, OS-locale detection, `**` globs, CI and releases.
 - ⏳ Then: near-duplicate names (FR-20), OS locale detection, `**` in globs.
 - ❓ Minor: more near-duplicate name patterns from practice; optional `.lnk` next to the stub.
 

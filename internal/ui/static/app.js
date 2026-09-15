@@ -15,6 +15,7 @@
     plan: new Map(),      // path -> action
     originals: new Map(), // group id -> path kept
     lastApply: null,      // result of the last /api/apply, shown until dismissed
+    quarantine: null,     // batches from /api/quarantine
   };
 
   const $ = (sel, el = document) => el.querySelector(sel);
@@ -54,7 +55,7 @@
 
   const FLAT = ['oversize', 'archive', 'distributive', 'junk', 'empty-dir', 'empty-file'];
   const GROUPED = ['duplicate', 'dir-duplicate', 'dir-overlap'];
-  const ORDER = ['oversize', 'archive', 'distributive', 'duplicate', 'dir-duplicate', 'dir-overlap', 'junk', 'empty-dir', 'empty-file'];
+  const ORDER = ['oversize', 'archive', 'distributive', 'duplicate', 'dir-duplicate', 'dir-overlap', 'similar-name', 'junk', 'empty-dir', 'empty-file'];
 
   // ---------- data access ----------
   const findings = (cat) => state.d.findings.filter((f) => f.category === cat);
@@ -207,6 +208,7 @@
       item(c, t('cat.' + c), `${s.count} · ${humanSize(s.size)}`);
     }
     items.push('<div class="sep"></div>');
+    item('quarantine', t('ui.quarantine'), state.quarantine ? state.quarantine.filter((b) => b.pending > 0).length : '');
     item('top-files', t('scan.top_files'), d.top_files.length);
     item('top-dirs', t('scan.top_dirs'), d.top_dirs.length);
     if (d.errors.length) item('errors', t('html.errors'), d.errors.length);
@@ -223,6 +225,8 @@
     if (v === 'duplicate') return renderGroups(main, 'file');
     if (v === 'dir-duplicate') return renderGroups(main, 'dir');
     if (v === 'dir-overlap') return renderOverlaps(main);
+    if (v === 'similar-name') return renderNames(main);
+    if (v === 'quarantine') return renderQuarantine(main);
     if (v === 'top-files' || v === 'top-dirs') return renderTop(main, v);
     if (v === 'errors') return renderErrors(main);
     if (v === 'skipped') return renderSkipped(main);
@@ -378,6 +382,85 @@
     bindSort(main, () => renderOverlaps(main));
   }
 
+  function renderNames(main) {
+    const groups = state.d.similar_names;
+    const s = summaryOf('similar-name');
+    const visible = groups.filter((g) => g.files.some((m) => matches(m.path)));
+    let html = `<h2>${esc(t('cat.similar-name'))} <span class="muted">${esc(tf('names.header', '', s.count, groups.reduce((n, g) => n + g.variants, 0), humanSize(s.size)).replace(/^:\s*/, ''))}</span></h2>`;
+    html += `<p class="hint">${esc(t('ui.names_hint'))}</p>` + toolbar(`<span class="muted">${visible.length}/${groups.length}</span>`);
+    for (const g of visible) {
+      html += `<div class="group" data-id="${esc(g.id)}"><div class="ghead"><b>${esc(g.name)}</b><span class="muted">${g.count}</span><span class="id">${esc(g.id)}</span></div><ul>`;
+      for (const m of g.files) {
+        const sel = state.plan.has(m.path);
+        let tag = m.is_base ? t('names.base') : m.marker;
+        if (m.dup_group) tag += ', ' + tf('names.dup', m.dup_group);
+        html += `<li class="${m.is_base ? 'orig' : sel ? 'sel' : ''}" data-path="${esc(m.path)}">
+          <label><input type="checkbox" class="q" ${sel ? 'checked' : ''}>${esc(t('ui.to_quarantine'))}</label>
+          <span class="path">${pathHtml(m.path, m.rel)}</span>
+          <span class="mt">${humanSize(m.size)} · [${esc(tag)}] · ${fmtTime(m.mtime)}</span>
+          <button class="reveal" title="${esc(t('ui.reveal'))}">📂</button></li>`;
+      }
+      html += '</ul></div>';
+    }
+    if (!visible.length) html += `<p class="empty">${esc(t('ui.no_items'))}</p>`;
+    main.innerHTML = html;
+    const byId = new Map(groups.map((g) => [g.id, g]));
+    main.querySelectorAll('.group').forEach((el) => {
+      const g = byId.get(el.dataset.id);
+      const byPath = new Map(g.files.map((m) => [m.path, m]));
+      el.querySelectorAll('li').forEach((li) => {
+        const m = byPath.get(li.dataset.path);
+        $('input.q', li).addEventListener('change', (e) => {
+          if (e.target.checked) planAdd({ op: 'quarantine', path: m.path, category: 'similar-name', size: m.size, original: g.base && g.base !== m.path ? g.base : undefined });
+          else planRemove(m.path);
+          li.classList.toggle('sel', e.target.checked && !m.is_base);
+        });
+        $('.reveal', li).addEventListener('click', () => reveal(m.path));
+      });
+    });
+    bindFilter(main, () => renderNames(main));
+  }
+
+  async function loadQuarantine() {
+    try {
+      const r = await fetch('/api/quarantine');
+      state.quarantine = r.ok ? await r.json() : [];
+    } catch (_) { state.quarantine = []; }
+  }
+  function renderQuarantine(main) {
+    const list = state.quarantine || [];
+    let html = `<h2>${esc(t('ui.quarantine'))} <span class="muted">${list.length}</span></h2><p class="hint">${esc(t('ui.quarantine_hint'))}</p>`;
+    if (!list.length) { main.innerHTML = html + `<p class="empty">${esc(t('ui.q_empty'))}</p>`; return; }
+    html += `<table><tr><th>${esc(t('ui.q_created'))}</th><th>${esc(t('ui.q_status'))}</th><th class="num">${esc(t('ui.q_pending'))}</th><th class="num">${esc(t('ui.q_items'))}</th><th class="num">${esc(t('col.size'))}</th><th>${esc(t('col.path'))}</th><th></th></tr>`;
+    list.forEach((b, i) => {
+      const status = { active: 'ui.q_active', restored: 'ui.q_restored', partial: 'ui.q_partial', purged: 'ui.q_purged' }[b.status] || b.status;
+      html += `<tr data-i="${i}"><td class="tag">${fmtTime(b.created)}</td><td class="tag">${esc(t(status))}</td><td class="num">${b.pending}</td><td class="num">${b.items}</td><td class="num">${humanSize(b.size)}</td><td class="path">${esc(b.dir)} <button class="reveal" title="${esc(t('ui.reveal'))}">📂</button></td><td><button class="btn small restore" ${b.pending ? '' : 'disabled'}>${esc(t('ui.q_restore'))}</button></td></tr>`;
+    });
+    html += '</table><p id="qStatus" class="muted"></p>';
+    main.innerHTML = html;
+    main.querySelectorAll('tr[data-i]').forEach((tr) => {
+      const b = list[Number(tr.dataset.i)];
+      $('.reveal', tr).addEventListener('click', () => reveal(b.dir));
+      $('.restore', tr).addEventListener('click', async () => {
+        if (!confirm(tf('ui.q_restore_confirm', b.pending, humanSize(b.size), fmtTime(b.created)))) return;
+        $('#qStatus').textContent = '…';
+        try {
+          const r = await fetch('/api/restore', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ manifest: b.path }) });
+          const txt = await r.text();
+          if (!r.ok) throw new Error(txt);
+          const j = JSON.parse(txt);
+          await loadQuarantine();
+          await rescan();
+          state.view = 'quarantine';
+          render();
+          $('#qStatus').textContent = tf('ui.q_restore_done', j.restored, j.problems.length);
+        } catch (e) {
+          $('#qStatus').textContent = e.message;
+        }
+      });
+    });
+  }
+
   function renderTop(main, v) {
     const items = v === 'top-files' ? state.d.top_files : state.d.top_dirs;
     const rows = items.filter((i) => matches(i.path));
@@ -407,6 +490,7 @@
     state.d = j.report; state.lang = j.lang; state.S = j.strings;
     state.meta = { report_path: j.report_path, plan_dir: j.plan_dir, version: j.version, os: j.os };
     prunePlan();
+    await loadQuarantine();
     render();
   }
   // After a rescan the plan may name paths that no longer exist in the
@@ -416,6 +500,7 @@
     const known = new Set(state.d.findings.map((f) => f.path));
     for (const g of state.d.duplicates) for (const f of g.files) known.add(f.path);
     for (const g of state.d.dir_duplicates) for (const d of g.dirs) known.add(d.path);
+    for (const g of state.d.similar_names || []) for (const f of g.files) known.add(f.path);
     let dropped = 0;
     for (const p of [...state.plan.keys()]) if (!known.has(p)) { state.plan.delete(p); dropped++; }
     if (dropped) $('#planStatus').textContent = '';

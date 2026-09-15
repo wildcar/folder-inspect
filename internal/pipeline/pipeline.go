@@ -22,6 +22,7 @@ func Run(roots []string, cfg *config.Config, version string) (*report.Report, er
 	findings := detect.Run(res, cfg)
 	var dups detect.DupResult
 	var dirs detect.DirDupResult
+	var names detect.NameResult
 	if cfg.Duplicates.Enabled {
 		dups = detect.Duplicates(res.Files, detect.DupOptions{MinSize: int64(cfg.Duplicates.MinSize)})
 		findings = append(findings, dups.Findings()...)
@@ -31,8 +32,12 @@ func Run(roots []string, cfg *config.Config, version string) (*report.Report, er
 			})
 			findings = append(findings, dirs.Findings()...)
 		}
-		detect.Sort(findings)
 		res.Finished = time.Now() // the scan includes hashing
 	}
-	return report.Build(res, findings, dups, dirs, cfg, version), nil
+	if cfg.SimilarNames.Enabled {
+		names = detect.SimilarNames(res.Files, dups)
+		findings = append(findings, names.Findings()...)
+	}
+	detect.Sort(findings)
+	return report.Build(res, findings, dups, dirs, names, cfg, version), nil
 }
