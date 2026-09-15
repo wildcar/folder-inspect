@@ -18,7 +18,7 @@ MEMORY.md = durable facts/agreements; current state -> STATE.md; iteration log -
 - The owner answers questionnaires by the numbering used in the chat summary, not the document's A/B/C ids — map answers back to the document when recording them.
 - The owner wants a "proper interface" for colleagues, not a developer-only CLI (2026-09-15); why: users are project people working with documents.
 - No hard links or symlinks anywhere in the product (2026-09-15); why: the owner wants a removed duplicate to leave a visible, human-readable trace pointing to the original by relative path.
-- Decisions that affect users' files (which duplicate stays) are made by a person in the UI, not by a heuristic; the tool only suggests.
+- Decisions that affect users' files (which duplicate stays) are made by a person in the UI, not by a heuristic; the tool only suggests. The rule-based `plan` command keeps this: duplicate groups are touched only with an explicit `-duplicates <policy>` flag (no default), and similar names / overlapping folders cannot be planned by rule at all (2026-09-15).
 - The owner has no opinion on licensing — MIT was accepted on the agent's suggestion (2026-09-15); do not re-ask.
 - Similar-name groups are per folder, not repository-wide (owner decision 2026-09-15); why: copies land next to their source, cross-folder groups were noise.
 - On Windows, never pass `/select,<path>` to explorer.exe as a Go argument — Go quotes it whole and Explorer opens Documents; build the command line via `SysProcAttr.CmdLine` (2026-09-15).

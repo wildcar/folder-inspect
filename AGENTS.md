@@ -134,7 +134,7 @@ Stack: Go 1.27 (module `github.com/wildcar/folder-inspect`), standard toolchain,
 
 ```bash
 # install      — go mod download
-# dev / run    — go run ./cmd/folder-inspect scan <root>          (also: ui, report, apply, restore, quarantine list|show|purge, fixture, version)
+# dev / run    — go run ./cmd/folder-inspect scan <root>          (also: ui, report, plan, apply, restore, quarantine list|show|purge, fixture, version)
 # build        — go build -o dist/folder-inspect.exe ./cmd/folder-inspect
 # test         — go test ./...
 # lint         — go vet ./... && gofmt -l .   (gofmt -l must print nothing)
@@ -145,17 +145,17 @@ Stack: Go 1.27 (module `github.com/wildcar/folder-inspect`), standard toolchain,
 
 ## Architecture
 
-Pipeline: `pipeline.Run` = `scan.Walk` → `detect.Run` + `detect.Duplicates` (the only detector with I/O) + `detect.DuplicateDirs` → `report.Build` → `<root>/.folder-inspect/reports/report-<ts>.json` → console / `export` (csv, xlsx, html) / `ui` (browser) → `plan-<ts>.json` → `action.Apply` → `<root>/.folder-inspect/quarantine/<ts>/` + `manifest.json` + `<name>.removed.txt` stubs → `action.Restore`.
+Pipeline: `pipeline.Run` = `scan.Walk` → `detect.Run` + `detect.Duplicates` (the only detector with I/O) + `detect.DuplicateDirs` → `report.Build` → `<root>/.folder-inspect/reports/report-<ts>.json` → console / `export` (csv, xlsx, html) / `ui` (browser) or `plan` (rules) → `plan-<ts>.json` → `action.Apply` → `<root>/.folder-inspect/quarantine/<ts>/` + `manifest.json` + `<name>.removed.txt` stubs → `action.Restore`.
 
 ```
-cmd/folder-inspect/   CLI entry point; one file per command (cmd_scan.go, cmd_report.go, cmd_ui.go, cmd_apply.go, cmd_restore.go, cmd_quarantine.go, cmd_fixture.go)
+cmd/folder-inspect/   CLI entry point; one file per command (cmd_scan.go, cmd_report.go, cmd_ui.go, cmd_plan.go, cmd_apply.go, cmd_restore.go, cmd_quarantine.go, cmd_fixture.go)
 internal/pipeline/    Run(roots, cfg, version): the whole scan, shared by scan and the UI's rescan
 internal/scan/        walker + file index with per-folder aggregates; never follows links; skips system dirs and .folder-inspect
 internal/detect/      detectors over the index: size.go (graded rules), ext.go (archives, distributives), junk.go, empty.go, dup.go (size → head hash → full hash, parallel), dirdup.go (identical folders + overlap pairs, derived from dup groups), names.go (copy/version markers → similar-name groups)
 internal/report/      Report model (schema v3), console summary, output policy (DefaultDir, DefaultName, UniquePath, CheckOverwrite), shared formatting (HumanSize, Qualifier)
 internal/export/      csv.go, xlsx.go (excelize), html.go (html/template, self-contained page)
 internal/ui/          localhost server + embedded static page (plain JS): /api/report, /api/export, /api/plan, /api/reveal, /api/rescan, /api/apply, /api/quarantine, /api/restore
-internal/action/      plan.go (model + validation), apply.go (quarantine batches, manifest, re-verification), stub.go, restore.go, quarantine.go (list, describe, purge), options.go
+internal/action/      plan.go (model + validation), rules.go (plan from rules: categories, keep policies, filters), apply.go (quarantine batches, manifest, re-verification), stub.go, restore.go, quarantine.go (list, describe, purge), options.go
 internal/config/      defaults + YAML (.folder-inspect.yml), ByteSize with binary units
 internal/glob/        case-insensitive glob matching shared by scan and detect
 internal/i18n/        RU (default) / EN message catalogs; a test enforces key parity

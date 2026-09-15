@@ -176,8 +176,17 @@ folder-inspect scan <root...>
   source report, and actions `quarantine` (any finding), `quarantine-duplicate` (copy +
   original), `quarantine-dir` (folder copy + original folder); validated: every path inside
   a root, never a root itself, originals never quarantined. `apply -dry-run` / the UI's
-  "Check plan" lists what would move without touching the disk. ⏳ `plan` from rules
-  ("all junk") without the UI.
+  "Check plan" lists what would move without touching the disk.
+- FR-41a ✅ `plan` from rules without the UI (`plan [options] <report | folder>`): `-select`
+  quarantines whole categories (junk, archive, distributive, oversize, empty-dir, empty-file,
+  or `all`); `-duplicates` / `-dir-duplicates oldest|newest|shallowest` quarantine duplicate
+  groups keeping one copy per group by an **explicit** policy (no default — which copy stays
+  is the caller's choice); `-include` / `-exclude` globs and `-min-size` narrow the set;
+  `-dry-run` prints without saving, `-quiet` prints only the saved plan path for scripts,
+  `-out` + `-force` name the file. Similar names and overlapping folders are refused (a
+  person must look). Folder actions win over items inside them; files inside a kept
+  original folder are protected from the duplicate policy. The result is an ordinary
+  plan-<ts>.json, applied with `apply` as usual.
 - FR-42 ✅ Quarantine: `apply` moves every planned item to
   `<root>/<quarantine.dir>/<YYYY-MM-DD_HHMMSS>/<relative path>` (default dir
   `.folder-inspect/quarantine`, one batch folder per root per run, never reused) and writes
@@ -220,14 +229,14 @@ folder-inspect scan <root...>
 ## Project structure
 
 ```
-cmd/folder-inspect/     entry point; cmd_scan.go, cmd_report.go, cmd_fixture.go (planned: ui, plan, apply, restore)
+cmd/folder-inspect/     entry point; one file per command: cmd_scan.go, cmd_report.go, cmd_ui.go, cmd_plan.go, cmd_apply.go, cmd_restore.go, cmd_quarantine.go, cmd_fixture.go
 internal/scan/          walker, file index with per-folder aggregates
 internal/detect/        detectors: size.go, ext.go (archives, distributives), junk.go, empty.go, dup.go (the only one with I/O), dirdup.go, names.go (SplitName + SimilarNames)
 internal/report/        Report model + JSON I/O, console summary, overwrite policy, shared formatting
 internal/export/        csv.go, xlsx.go (excelize), html.go (html/template, self-contained)
 internal/pipeline/      Run(roots, cfg): walk → detectors → duplicates → folder duplicates → report; used by scan and the UI's rescan
 internal/ui/            localhost server (server.go: /api/report, /api/export, /api/plan, /api/reveal, /api/rescan, /api/apply) + static/ (index.html, app.js, style.css, embedded)
-internal/action/        plan.go (Plan/Action, validation, plan-<ts>.json), apply.go (quarantine batches, manifest, re-verification), stub.go (<name>.removed.txt texts), restore.go, quarantine.go (ListBatches, Describe, Purge), options.go (config → ApplyOptions)
+internal/action/        plan.go (Plan/Action, validation, plan-<ts>.json), rules.go (FromRules: plan from categories + keep policies + filters), apply.go (quarantine batches, manifest, re-verification), stub.go (<name>.removed.txt texts), restore.go, quarantine.go (ListBatches, Describe, Purge), options.go (config → ApplyOptions)
 internal/config/        defaults, YAML loading, ByteSize
 internal/glob/          case-insensitive glob matching
 internal/i18n/          RU / EN message catalogs
@@ -264,7 +273,9 @@ docs/                   ADRs, questionnaire, example config
   Quarantine view with Restore in the UI (FR-46). Report schema 4.
 - ✅ CI and releases (2026-09-15): GitHub Actions for checks/tests/cross-build on push and
   GitHub Releases on `v*` tags; `scripts/build.sh` shared by both.
-- ⏳ Next: `plan` from rules, OS-locale detection, `**` globs.
+- ✅ `plan` from rules (2026-09-15): FR-41a — categories, duplicate keep policies, filters,
+  dry-run and quiet modes; `Plan.SaveAs` for explicit -out paths.
+- ⏳ Next: OS-locale detection, `**` globs.
 - ❓ Minor: more near-duplicate name patterns from practice; optional `.lnk` next to the stub.
 
 See `AGENTS/STATE.md` for the live Now / Next snapshot.

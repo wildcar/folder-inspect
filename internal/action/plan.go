@@ -147,6 +147,22 @@ func (p *Plan) Save(dir string) (string, error) {
 	return path, os.WriteFile(path, data, 0o644)
 }
 
+// SaveAs validates and writes the plan to exactly path (the caller has
+// already decided about overwriting), creating parent folders.
+func (p *Plan) SaveAs(path string) (string, error) {
+	if err := p.Validate(); err != nil {
+		return "", err
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return "", err
+	}
+	data, err := json.MarshalIndent(p, "", "  ")
+	if err != nil {
+		return "", err
+	}
+	return path, os.WriteFile(path, data, 0o644)
+}
+
 // Load reads a plan written by Save.
 func Load(path string) (*Plan, error) {
 	data, err := os.ReadFile(path)

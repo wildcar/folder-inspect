@@ -14,6 +14,9 @@ safely. It reports what should not be there:
 - copy candidates by name in the same folder: «Копия …», «… (2)», «… - копия», «…_v2»,
   «…_final», «(Восстановлен)» grouped with the base file (informational — contents may differ).
 
+Clean-up plans come either from ticks in the web UI or from rules on the command line
+(`plan -select junk,archive -duplicates oldest`) for repeatable, scripted clean-ups.
+
 **Nothing is ever deleted.** You tick what to remove in the web UI; `apply` moves those files
 into a dated quarantine folder inside the repository and leaves a short `<name>.removed.txt`
 note where each file was: what was removed, when, why (archive, distributive, video, oversized,
@@ -53,11 +56,13 @@ dist/folder-inspect.exe ui "D:\Проекты"            # browse, pick origina
 dist/folder-inspect.exe restore "D:\Проекты"       # undo the latest quarantine batch (or pass its manifest.json)
 ```
 
-The same steps without the browser:
+The same steps without the browser — the plan is built from rules instead of ticks:
 
 ```
 dist/folder-inspect.exe scan -export xlsx,html "D:\Проекты" "\\server\share\Проекты"
 dist/folder-inspect.exe report -format xlsx "D:\Проекты\.folder-inspect\reports\report-2026-09-15_142744.json"
+dist/folder-inspect.exe plan -select junk,archive,distributive -dry-run "D:\Проекты"     # show what the rules would take
+dist/folder-inspect.exe plan -select all -duplicates oldest -dir-duplicates oldest -exclude "*.mp4" "D:\Проекты"
 dist/folder-inspect.exe apply -dry-run "D:\Проекты\.folder-inspect\reports\plan-2026-09-15_150639.json"
 dist/folder-inspect.exe apply "D:\Проекты\.folder-inspect\reports\plan-2026-09-15_150639.json"
 dist/folder-inspect.exe restore -dry-run "D:\Проекты\.folder-inspect\quarantine\2026-09-15_153710\manifest.json"
@@ -69,6 +74,13 @@ dist/folder-inspect.exe quarantine purge -yes "D:\Проекты\.folder-inspect
 Useful flags: `scan -out <file>` (explicit report path; existing files are refused unless
 `-force`), `-no-dups` (skip reading file contents), `-quiet`, `-top N`, `-config <file>`,
 `-lang ru|en` (console, UI and stub language); `ui -port N`, `ui -no-browser`; `apply -no-stubs`.
+
+`plan` rules: `-select` takes `junk, archive, distributive, oversize, empty-dir, empty-file`
+or `all`; `-duplicates` and `-dir-duplicates` take the copy to keep per group — `oldest`
+(the UI's suggestion), `newest` or `shallowest` (shortest path) — and are off unless given;
+`-include` / `-exclude` globs and `-min-size 10MB` narrow the set; `-dry-run` only prints;
+`-quiet` prints just the saved plan path, so a script can chain `apply` on it. Similar names
+and overlapping folders are never planned by rule — those need a look in the UI.
 
 Configuration: put `.folder-inspect.yml` into the scanned folder or your home folder — see
 `docs/folder-inspect.example.yml` (thresholds, junk patterns, exclusions, duplicate and folder

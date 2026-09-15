@@ -26,6 +26,7 @@ Usage:
   folder-inspect scan [options] <folder> [<folder>...]   scan folders, write <folder>/.folder-inspect/reports/report-<date>.json, print a summary
   folder-inspect ui [options] <report.json | folder>     open the report in the browser (newest report of a folder)
   folder-inspect report [options] <report.json>          re-print a saved report or export it (csv, xlsx, html)
+  folder-inspect plan [options] <report.json | folder>   build a plan from rules (-select junk,archive -duplicates oldest) without the UI
   folder-inspect apply [options] <plan.json>             move planned items to quarantine, leave stubs (-dry-run to preview)
   folder-inspect restore [options] <manifest | folder>   bring a quarantine batch back
   folder-inspect quarantine list|show|purge ...          inspect quarantine batches; purge deletes for good (-yes)
@@ -50,6 +51,8 @@ func main() {
 		code = runReport(os.Args[2:])
 	case "ui":
 		code = runUI(os.Args[2:])
+	case "plan":
+		code = runPlan(os.Args[2:])
 	case "apply":
 		code = runApply(os.Args[2:])
 	case "restore":

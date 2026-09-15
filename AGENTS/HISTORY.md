@@ -4,6 +4,12 @@ Newest first. Each entry ≤5 lines using the format defined in `AGENTS.md`.
 
 ---
 
+## 2026-09-15 · `plan` from rules
+- What: `action.FromRules` (categories → quarantine; duplicate / folder groups with an explicit keep policy oldest|newest|shallowest; include/exclude globs, min-size; folder actions win over items inside; files in kept folders protected) + `Plan.SaveAs`; `plan` command (-select, -duplicates, -dir-duplicates, -include, -exclude, -min-size, -out/-force, -dry-run, -quiet); i18n `plan.*`; unit tests; verified on the fixture: plan → apply → list → restore.
+- Why: owner released v0.1.0 and asked for the rule-based plan (FR-41a) for scripted clean-ups without the UI.
+- Files: internal/action/rules.go, internal/action/rules_test.go, internal/action/plan.go, cmd/folder-inspect/cmd_plan.go, cmd/folder-inspect/main.go, internal/i18n/i18n.go, AGENTS/SPEC.md, AGENTS.md, README.md
+- Next: OS-locale detection on Windows, `**` globs, marker review on real data.
+
 ## 2026-09-15 · CI and releases
 - What: `.github/workflows/ci.yml` (gofmt, vet linux+windows, tests on ubuntu+windows, cross-build artifact), `.github/workflows/release.yml` (tag `v*` → checks → archives → GitHub Release via `gh` on the runner, pre-release for suffixed tags), `scripts/build.sh` (windows/linux amd64 archives with README/LICENSE/example config + SHA256SUMS, version via ldflags; zip fallbacks for a Windows dev host).
 - Why: owner confirmed the Explorer fix and asked for GitHub Actions and releases; colleagues need a downloadable executable.

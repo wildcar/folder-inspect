@@ -9,33 +9,32 @@ the live picture here; push detail into `AGENTS/SPEC.md` (the contract) and `AGE
 Build folder-inspect: a Go tool that finds oversized files (graded by kind), archives and
 distributives, junk, duplicate files and folders, copy candidates by name in project document
 repositories, shows them in a local web UI with exports, and cleans up via quarantine with
-explanatory stubs. Contract: `AGENTS/SPEC.md` v0.2 — every FR-1…FR-46 is implemented; the
-rule-based `plan` command is the only listed item still open.
+explanatory stubs — by ticks in the UI or by rules from the CLI. Contract: `AGENTS/SPEC.md`
+v0.2 — every FR-1…FR-46 including FR-41a is implemented.
 
 ## Now
 
-- CI and releases added 2026-09-15: `ci.yml` (gofmt, vet linux+windows, tests ubuntu+windows,
-  cross-build artifact) and `release.yml` (tag `v*` → GitHub Release with
-  `folder-inspect_<ver>_{windows,linux}_amd64` archives + SHA256SUMS). `scripts/build.sh`
-  verified locally (both archives, `version` prints the ldflags value). No tag pushed yet —
-  cutting v0.1.0 is the owner's call.
-- Owner confirmed 2026-09-15: slices 1–4 work on real repositories; the Explorer reveal fix
-  works; similar names are grouped per folder.
-- Build/vet/gofmt/tests green (11 packages).
+- v0.1.0 released 2026-09-15 by the owner via the tag workflow; CI green on main.
+- `plan` from rules added 2026-09-15 (FR-41a): `-select` categories, `-duplicates` /
+  `-dir-duplicates oldest|newest|shallowest`, `-include/-exclude/-min-size`, `-dry-run`,
+  `-quiet` (path only, for scripts), `-out/-force`. Similar names and overlaps are refused
+  by design. Verified on the fixture end to end (plan → apply → quarantine list → restore).
+- Build/vet/gofmt/tests green (11 packages, 6 new rule tests).
 
 ## Next
 
-1. First release: owner pushes `v0.1.0` (`git tag -a v0.1.0 -m "v0.1.0" && git push origin v0.1.0`), then check the Release page.
-2. `plan` from rules without the UI ("all junk", "all archives") for scripted clean-ups.
-3. Owner review of the similar-name markers on real data (false positives?) and the stub text for copies.
-4. Smaller: Windows OS-locale detection, `**` globs, per-folder summary note as an option.
+1. Owner tries `plan -select junk -dry-run` on a real repository; then tag v0.2.0.
+2. Windows OS-locale detection for the default language.
+3. `**` globs in exclusions, junk patterns and plan filters.
+4. Owner review of the similar-name markers on real data; stub text for copies.
 
 ## Open questions
 
 - Markers list: add `_итоговый`, `(старая версия)`, `- финал`? Collect from the owner's real names.
+- Should `plan` also accept `-rule <size rule name>` (e.g. only `image` oversize)? Wait for a need.
 - Purge from the UI stays out by design; revisit only if colleagues ask.
 
 ## Deferred
 
-- `**` glob support in exclusions and junk patterns.
 - linux/arm64 or macOS builds — add to `scripts/build.sh` only if someone asks.
+- Per-folder summary note as an option.
