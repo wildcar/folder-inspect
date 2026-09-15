@@ -139,6 +139,8 @@ Stack: Go 1.27 (module `github.com/wildcar/folder-inspect`), standard toolchain,
 # test         — go test ./...
 # lint         — go vet ./... && gofmt -l .   (gofmt -l must print nothing)
 # demo         — go run ./cmd/folder-inspect fixture /tmp/demo && go run ./cmd/folder-inspect scan /tmp/demo
+# package      — scripts/build.sh <version>   (release archives → dist/release/; CI does this on every push)
+# release      — git tag -a vX.Y.Z -m vX.Y.Z && git push origin vX.Y.Z   (release.yml publishes the GitHub Release)
 ```
 
 ## Architecture

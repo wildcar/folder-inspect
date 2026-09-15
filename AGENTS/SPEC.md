@@ -238,6 +238,12 @@ docs/                   ADRs, questionnaire, example config
 ## Deployment
 
 - Single executable per OS, built with `go build`, published via GitHub Releases. No secrets.
+- CI (`.github/workflows/ci.yml`): gofmt, `go vet` for linux and windows, `go test` on Ubuntu
+  and Windows, cross-build via `scripts/build.sh` with the archives kept as a workflow artifact.
+- Release (`.github/workflows/release.yml`): on tag `v*` — checks, `scripts/build.sh <tag
+  without v>` → `folder-inspect_<ver>_windows_amd64.zip`, `folder-inspect_<ver>_linux_amd64.tar.gz`
+  (executable + README, LICENSE, example config) + `SHA256SUMS`; GitHub Release with generated
+  notes, `-suffix` tags become pre-releases. Version is embedded with `-X main.version`.
 
 ## Current state
 
@@ -256,8 +262,9 @@ docs/                   ADRs, questionnaire, example config
   and Apply from the UI (FR-40–45).
 - ✅ Slice 4 (2026-09-15): similar names (FR-20), `quarantine list|show|purge` (FR-44),
   Quarantine view with Restore in the UI (FR-46). Report schema 4.
-- ⏳ Next: `plan` from rules, OS-locale detection, `**` globs, CI and releases.
-- ⏳ Then: near-duplicate names (FR-20), OS locale detection, `**` in globs.
+- ✅ CI and releases (2026-09-15): GitHub Actions for checks/tests/cross-build on push and
+  GitHub Releases on `v*` tags; `scripts/build.sh` shared by both.
+- ⏳ Next: `plan` from rules, OS-locale detection, `**` globs.
 - ❓ Minor: more near-duplicate name patterns from practice; optional `.lnk` next to the stub.
 
 See `AGENTS/STATE.md` for the live Now / Next snapshot.

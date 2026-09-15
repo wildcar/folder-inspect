@@ -60,7 +60,12 @@ go test ./...                       # tests
 go vet ./... && gofmt -l .          # lint / format check (gofmt -l must print nothing)
 GOOS=linux GOARCH=amd64 go build -o dist/folder-inspect ./cmd/folder-inspect     # cross-compile (bash)
 $env:GOOS="linux"; go build -o dist/folder-inspect ./cmd/folder-inspect          # cross-compile (pwsh)
+./scripts/build.sh 0.0.0-local      # release archives for windows+linux into dist/release/ (bash)
+git tag -a v0.1.0 -m "v0.1.0" && git push origin v0.1.0   # publish a release (CI builds it)
 ```
+
+Checking CI without `gh`: `curl -s https://api.github.com/repos/wildcar/folder-inspect/actions/runs?per_page=5`
+(public repo, no token needed).
 
 ### Prod
 
@@ -77,6 +82,9 @@ A running log of gotchas — the things that cost an hour the first time. Split 
 - Global git identity on this host is a work account; the repo overrides it locally with `wildcar <wildcar@mail.ru>` (`git config user.name/email`, not `--global`).
 - Long bash heredocs with Cyrillic content failed to parse in the agent's Bash tool; use a file-write tool instead.
 - Creating symlinks needs Developer Mode or admin on Windows; `scan.TestWalkDoesNotFollowSymlinks` skips itself when it cannot create one.
+- Git Bash has no `zip`; `scripts/build.sh` falls back to `7z` or PowerShell `Compress-Archive`
+  for the Windows archive. Compress-Archive writes backslash entry names — fine for local
+  smoke tests, but real release archives come from the Linux runner where `zip` exists.
 - `go test` on the fixture package writes ~200 KB (scale 1024); the `fixture` command at scale 1 writes ~170 MB — point it at a temp folder.
 
 ### Prod

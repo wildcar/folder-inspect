@@ -30,4 +30,5 @@ MEMORY.md = durable facts/agreements; current state -> STATE.md; iteration log -
 - Commit identity is set per-repo (`git config user.name/email`), because the host's global git identity is a different (work) account.
 - No `gh` CLI on the dev host; GitHub operations go through plain `git` or the web UI.
 - Domain: a "project repository" here is a folder of documents for an implementation project; files must be directly openable by link, which is why archives count as findings.
+- Releases are cut by pushing an annotated tag `vX.Y.Z` (2026-09-15); the version string is the tag without `v`, embedded via ldflags. The repo is public, so CI status can be read from the GitHub REST API without a token.
 - Real repositories seen 2026-09-15: two roots, ~33 GB / 4 579 files and ~24 GB / 1 283 files, no read errors; oversized findings are mostly video (mp4, mkv, avi, insv, lrv) and photos. Sizes of this order are the performance target.

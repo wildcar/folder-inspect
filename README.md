@@ -25,7 +25,14 @@ Status: **all MVP features work** — scan, duplicates (files, folders, names), 
 with rescan/apply/restore, CLI apply/restore/quarantine. Stack: Go, single executable for
 Windows and Linux (see `docs/adr/0001-stack-and-interface.md`). License: MIT.
 
-## Run locally
+## Install
+
+Download the archive for your OS from [GitHub Releases](https://github.com/wildcar/folder-inspect/releases)
+(`folder-inspect_<version>_windows_amd64.zip` or `folder-inspect_<version>_linux_amd64.tar.gz`,
+checksums in `SHA256SUMS`), unpack it anywhere and run `folder-inspect` from there — one
+executable, no installer, no dependencies. `folder-inspect version` prints the version.
+
+## Run from source
 
 Requires Go 1.27+.
 
@@ -68,9 +75,22 @@ Configuration: put `.folder-inspect.yml` into the scanned folder or your home fo
 thresholds, quarantine folder, which categories get a note and your own note texts). Exit code
 is 1 when some paths could not be read or some actions failed, 2 on usage errors.
 
+## CI and releases
+
+GitHub Actions (`.github/workflows/ci.yml`) runs gofmt, `go vet` (linux + windows), tests on
+Ubuntu and Windows and a cross-build on every push. A tag `vX.Y.Z` triggers
+`release.yml`, which re-runs the checks, builds both archives with `scripts/build.sh X.Y.Z`
+(version embedded via `-ldflags -X main.version`) and publishes a GitHub Release with
+generated notes; tags with a suffix (`v0.2.0-rc1`) are marked as pre-releases.
+
+```
+git tag -a v0.1.0 -m "v0.1.0" && git push origin v0.1.0
+```
+
 ## Docs
 
 - `AGENTS.md` — entrypoint for AI agents working in this repo (workflow, rules, doc map).
+- `scripts/build.sh` — builds the release archives locally (`scripts/build.sh 0.0.0-local`).
 - `AGENTS/SPEC.md` — functional specification (contract).
 - `docs/adr/` — architecture decisions.
 - `docs/folder-inspect.example.yml` — annotated example configuration.

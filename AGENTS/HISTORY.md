@@ -4,6 +4,12 @@ Newest first. Each entry ≤5 lines using the format defined in `AGENTS.md`.
 
 ---
 
+## 2026-09-15 · CI and releases
+- What: `.github/workflows/ci.yml` (gofmt, vet linux+windows, tests on ubuntu+windows, cross-build artifact), `.github/workflows/release.yml` (tag `v*` → checks → archives → GitHub Release via `gh` on the runner, pre-release for suffixed tags), `scripts/build.sh` (windows/linux amd64 archives with README/LICENSE/example config + SHA256SUMS, version via ldflags; zip fallbacks for a Windows dev host).
+- Why: owner confirmed the Explorer fix and asked for GitHub Actions and releases; colleagues need a downloadable executable.
+- Files: .github/workflows/ci.yml, .github/workflows/release.yml, scripts/build.sh, README.md, AGENTS/SPEC.md, AGENTS/ENV.md, AGENTS/MEMORY.md, AGENTS/STATE.md
+- Next: first tag v0.1.0 by the owner; rule-based `plan` command.
+
 ## 2026-09-15 · Similar names per folder; Explorer reveal fix
 - What: `SimilarNames` groups within one folder only (key includes the parent path); `reveal` split into reveal_windows.go (hand-built command line `explorer.exe /select,"path"`) and reveal_other.go.
 - Why: owner feedback — repository-wide name groups were noisy; "show in file manager" opened Documents because Go quoted the whole `/select,<path>` argument.
