@@ -39,20 +39,28 @@ type dupGroup struct {
 	Files                    []dupFile
 }
 
+type overlapRow struct {
+	A, B, Shared, Line, RatioA, RatioB string
+}
+
 type htmlView struct {
-	L        map[string]string
-	Title    string
-	ToolLine string
-	Roots    []string
-	Stats    []kv
-	Summary  []struct{ Name, Count, Size string }
-	Sections []section
-	Dups     []dupGroup
-	DupLine  string
-	TopFiles []row
-	TopDirs  []row
-	Errors   []scan.Error
-	Skipped  []string
+	L           map[string]string
+	Title       string
+	ToolLine    string
+	Roots       []string
+	Stats       []kv
+	Summary     []struct{ Name, Count, Size string }
+	Sections    []section
+	Dups        []dupGroup
+	DupLine     string
+	DirDups     []dupGroup
+	DirDupLine  string
+	Overlaps    []overlapRow
+	OverlapLine string
+	TopFiles    []row
+	TopDirs     []row
+	Errors      []scan.Error
+	Skipped     []string
 }
 
 func newHTMLView(r *report.Report) htmlView {
@@ -72,6 +80,9 @@ func newHTMLView(r *report.Report) htmlView {
 			"error":     i18n.T("col.error"),
 			"legend":    i18n.T("dup.legend"),
 			"generated": i18n.Tf("html.generated", report.FormatTime(r.Finished)),
+			"related":   i18n.T("col.related"),
+			"ratioA":    i18n.T("col.ratio_a"),
+			"ratioB":    i18n.T("col.ratio_b"),
 		},
 		Title:    i18n.T("html.title"),
 		ToolLine: r.Tool + " " + r.Version,
@@ -94,7 +105,7 @@ func newHTMLView(r *report.Report) htmlView {
 		})
 	}
 	for _, c := range detect.Categories {
-		if c == detect.Duplicate {
+		if detect.GroupCategories[c] {
 			continue
 		}
 		items := r.ByCategory(c)
@@ -118,6 +129,27 @@ func newHTMLView(r *report.Report) htmlView {
 	}
 	if len(r.Duplicates) > 0 {
 		v.DupLine = i18n.Tf("dup.header", report.CategoryName(detect.Duplicate), len(r.Duplicates), report.HumanSize(wasted))
+	}
+	var dirWasted int64
+	for _, g := range r.DirDuplicates {
+		dirWasted += g.Wasted
+		dg := dupGroup{ID: g.ID, Size: report.HumanSize(g.Size), Wasted: report.HumanSize(g.Wasted),
+			Copies: i18n.Tf("dirdup.folders", g.Count) + ", " + i18n.Tf("dirdup.files", g.Files)}
+		for _, d := range g.Dirs {
+			dg.Files = append(dg.Files, dupFile{d.Path, report.FormatTime(d.ModTime), d.Path == g.Suggested})
+		}
+		v.DirDups = append(v.DirDups, dg)
+	}
+	if len(r.DirDuplicates) > 0 {
+		v.DirDupLine = i18n.Tf("dup.header", report.CategoryName(detect.DirDuplicate), len(r.DirDuplicates), report.HumanSize(dirWasted))
+	}
+	var shared int64
+	for _, o := range r.DirOverlaps {
+		shared += o.SharedBytes
+		v.Overlaps = append(v.Overlaps, overlapRow{o.A.Path, o.B.Path, report.HumanSize(o.SharedBytes), report.OverlapLine(o), report.Percent(o.RatioA), report.Percent(o.RatioB)})
+	}
+	if len(r.DirOverlaps) > 0 {
+		v.OverlapLine = i18n.Tf("overlap.header", report.CategoryName(detect.DirOverlap), len(r.DirOverlaps), report.HumanSize(shared))
 	}
 	for _, it := range r.TopFiles {
 		v.TopFiles = append(v.TopFiles, row{Size: report.HumanSize(it.Size), Path: it.Path})
@@ -217,6 +249,24 @@ var htmlTmpl = template.Must(template.New("report").Parse(`<!doctype html>
   <ul>{{range .Files}}<li{{if .Suggested}} class="keep"{{end}}>{{.Path}} <span class="muted">({{.MTime}})</span></li>{{end}}</ul>
 </div>
 {{end}}
+{{end}}
+
+{{if .DirDups}}
+<h2>{{.DirDupLine}}</h2>
+<div class="muted">{{.L.legend}}</div>
+{{range .DirDups}}
+<div class="group">
+  <div class="head">{{.Size}} · {{.Copies}} · <span class="muted">{{.ID}}</span></div>
+  <ul>{{range .Files}}<li{{if .Suggested}} class="keep"{{end}}>{{.Path}} <span class="muted">({{.MTime}})</span></li>{{end}}</ul>
+</div>
+{{end}}
+{{end}}
+
+{{if .Overlaps}}
+<h2>{{.OverlapLine}}</h2>
+<table><tr><th>{{.L.path}}</th><th>{{.L.related}}</th><th class="num">{{.L.size}}</th><th></th><th class="num">{{.L.ratioA}}</th><th class="num">{{.L.ratioB}}</th></tr>
+{{range .Overlaps}}<tr><td class="path">{{.A}}</td><td class="path">{{.B}}</td><td class="num">{{.Shared}}</td><td class="tag">{{.Line}}</td><td class="num">{{.RatioA}}</td><td class="num">{{.RatioB}}</td></tr>{{end}}
+</table>
 {{end}}
 
 {{if .TopFiles}}

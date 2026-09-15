@@ -31,9 +31,11 @@ func fixtureReport(t *testing.T) *report.Report {
 	}
 	findings := detect.Run(res, cfg)
 	dups := detect.Duplicates(res.Files, detect.DupOptions{MinSize: int64(cfg.Duplicates.MinSize)})
+	dirs := detect.DuplicateDirs(res, dups, detect.DirDupOptions{})
 	findings = append(findings, dups.Findings()...)
+	findings = append(findings, dirs.Findings()...)
 	detect.Sort(findings)
-	return report.Build(res, findings, dups, cfg, "test")
+	return report.Build(res, findings, dups, dirs, cfg, "test")
 }
 
 func TestParseList(t *testing.T) {
@@ -61,8 +63,11 @@ func TestCSV(t *testing.T) {
 	}
 	s := string(bytes.TrimPrefix(buf.Bytes(), utf8BOM))
 	lines := strings.Split(strings.TrimRight(s, "\r\n"), "\r\n")
-	if len(lines) != len(r.Findings)+1 {
-		t.Errorf("want %d lines, got %d", len(r.Findings)+1, len(lines))
+	if want := len(r.Findings) + len(r.DirOverlaps) + 1; len(lines) != want {
+		t.Errorf("want %d lines, got %d", want, len(lines))
+	}
+	if !strings.Contains(s, "Папки с общим содержимым") || !strings.Contains(s, "Папки-дубликаты") {
+		t.Error("CSV lacks folder rows")
 	}
 	if !strings.Contains(lines[0], "Категория;") {
 		t.Errorf("RU header must use ';': %q", lines[0])
@@ -87,7 +92,7 @@ func TestHTML(t *testing.T) {
 		t.Fatal(err)
 	}
 	s := buf.String()
-	for _, want := range []string{"<!doctype html>", "Отчёт folder-inspect", "Большие файлы", "Дубликаты", "Встреча 2026-03-01.mp4", `class="keep"`, "Самые тяжёлые папки"} {
+	for _, want := range []string{"<!doctype html>", "Отчёт folder-inspect", "Большие файлы", "Дубликаты", "Встреча 2026-03-01.mp4", `class="keep"`, "Самые тяжёлые папки", "Папки-дубликаты", "Приложения (копия)", "Папки с общим содержимым", "Для отправки"} {
 		if !strings.Contains(s, want) {
 			t.Errorf("HTML lacks %q", want)
 		}
@@ -116,7 +121,7 @@ func TestXLSX(t *testing.T) {
 	}
 	defer f.Close()
 	sheets := f.GetSheetList()
-	want := []string{"Сводка", "Находки", "Дубликаты", "Самые большие файлы", "Самые тяжёлые папки"}
+	want := []string{"Сводка", "Находки", "Дубликаты", "Папки-дубликаты", "Общее содержимое", "Самые большие файлы", "Самые тяжёлые папки"}
 	if len(sheets) != len(want) {
 		t.Fatalf("sheets: %v", sheets)
 	}
@@ -133,8 +138,16 @@ func TestXLSX(t *testing.T) {
 		t.Errorf("findings sheet: %d rows, header %v", len(rows), rows[0])
 	}
 	dupRows, _ := f.GetRows("Дубликаты")
-	if len(dupRows) != 4 { // header + 3 copies of the contract
+	if len(dupRows) != 10 { // header + 3 copies each of the contract and the two attachments
 		t.Errorf("duplicates sheet rows: %d", len(dupRows))
+	}
+	dirRows, _ := f.GetRows("Папки-дубликаты")
+	if len(dirRows) != 3 { // header + 2 identical folders
+		t.Errorf("duplicate folders sheet rows: %d", len(dirRows))
+	}
+	ovRows, _ := f.GetRows("Общее содержимое")
+	if len(ovRows) != 3 { // header + 2 pairs
+		t.Errorf("overlap sheet rows: %d", len(ovRows))
 	}
 	if v, _ := f.GetCellValue("Сводка", "A1"); v != "Показатель" {
 		t.Errorf("summary A1 = %q", v)

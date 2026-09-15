@@ -95,6 +95,39 @@ func XLSX(r *report.Report, w io.Writer) error {
 		return err
 	}
 
+	// Duplicate folders
+	dirDups := i18n.T("sheet.dir_duplicates")
+	rows = [][]any{{
+		i18n.T("col.group"), i18n.T("col.size_bytes"), i18n.T("col.size"), i18n.T("col.files"),
+		i18n.T("col.count"), i18n.T("col.wasted"), i18n.T("col.suggested"), i18n.T("col.path"), i18n.T("col.mtime"),
+	}}
+	for _, g := range r.DirDuplicates {
+		for _, d := range g.Dirs {
+			suggested := ""
+			if d.Path == g.Suggested {
+				suggested = "*"
+			}
+			rows = append(rows, []any{g.ID, g.Size, report.HumanSize(g.Size), g.Files, g.Count, report.HumanSize(g.Wasted), suggested, d.Path, report.FormatTime(d.ModTime)})
+		}
+	}
+	if err := newTable(f, dirDups, rows, bold, []float64{14, 14, 12, 8, 8, 12, 10, 80, 17}); err != nil {
+		return err
+	}
+
+	// Folders with shared content
+	overlaps := i18n.T("sheet.overlaps")
+	rows = [][]any{{
+		i18n.T("col.path"), i18n.T("col.related"), i18n.T("col.shared_files"), i18n.T("col.shared_bytes"),
+		i18n.T("col.size"), i18n.T("col.ratio"), i18n.T("col.ratio_a"), i18n.T("col.ratio_b"),
+	}}
+	for _, o := range r.DirOverlaps {
+		rows = append(rows, []any{o.A.Path, o.B.Path, o.SharedFiles, o.SharedBytes, report.HumanSize(o.SharedBytes),
+			report.Percent(o.Ratio), report.Percent(o.RatioA), report.Percent(o.RatioB)})
+	}
+	if err := newTable(f, overlaps, rows, bold, []float64{70, 70, 10, 14, 12, 12, 12, 12}); err != nil {
+		return err
+	}
+
 	// Top files / folders
 	for _, top := range []struct {
 		sheet string

@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>folder-inspect</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header id="top">
+  <div class="brand">
+    <h1>folder-inspect <span id="version" class="muted"></span></h1>
+    <div id="scanline" class="muted"></div>
+  </div>
+  <div class="controls">
+    <span class="muted" id="exportLabel"></span>
+    <a id="exportCsv" class="btn" href="#">CSV</a>
+    <a id="exportXlsx" class="btn" href="#">XLSX</a>
+    <a id="exportHtml" class="btn" href="#">HTML</a>
+    <button id="langBtn" class="btn ghost"></button>
+  </div>
+</header>
+
+<div id="layout">
+  <nav id="nav"></nav>
+  <main id="main"></main>
+</div>
+
+<footer id="planbar">
+  <div id="planInfo"></div>
+  <div class="grow"></div>
+  <span id="planStatus" class="muted"></span>
+  <button id="planClear" class="btn ghost"></button>
+  <button id="planSave" class="btn primary"></button>
+</footer>
+
+<script src="app.js"></script>
+</body>
+</html>

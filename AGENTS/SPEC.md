@@ -111,17 +111,34 @@ folder-inspect scan <root...>
   `Копия <name>`, `<name> - копия`, `<name> - копия (N)`, `Copy of <name>`, `<name> (N)`,
   `<name> - Copy`, `<name>_v2 / _v3 / _final / _старый / _old / _new / _новый`,
   `<name> (Восстановлен)` / `(Recovered)`. ❓ list to be refined with the owner.
-- FR-21 ⏳ For every duplicate group show the wasted size (✅ report, console, exports). The
-  canonical file (the one that stays) is **picked by the user in the web UI**; the report
-  already carries `suggested` = oldest by modification time, shown with `*`/★ everywhere.
-  Nothing happens to a group without a pick (⏳ UI).
+- FR-21 ✅ For every duplicate group show the wasted size. The canonical file (the one that
+  stays) is **picked by the user in the web UI** (radio per group, pre-selected: `suggested`
+  = oldest by modification time, shown with `*`/★ in console and exports). Copies are ticked
+  into the plan explicitly; nothing happens to a group without a pick.
+
+### Detector: duplicate folders (owner request 2026-09-15)
+- FR-23 ✅ **Identical folders**: same relative file paths and same file contents, derived from
+  the file duplicate groups without extra reads (every file of an identical pair has a same-size
+  twin and was hashed). Folders holding a file without a twin, or only files below
+  `duplicates.min_size`, are never identical. Nested identical sub-folders of identical parents
+  are not reported separately. Groups carry size, files, count, wasted bytes and a suggested
+  original (oldest mtime); the UI lets the user pick the original and quarantine the copies.
+- FR-24 ✅ **Overlapping folders**: pairs (never ancestor/descendant) whose shared content —
+  files with identical contents in both — is at least `folder_duplicates.min_overlap` (default
+  50 %) of the smaller folder and at least `min_files` (default 2) files. Pairs fully explained
+  by a deeper reported pair or by an identical-folder group are dropped as noise. Reported with
+  shared files/bytes and the share of each folder; informational only, no actions on pairs.
 
 ### Reporting
-- FR-30 ✅ `report-<YYYY-MM-DD_HHMMSS>.json` (schema 2) — native result: tool/version,
+- FR-30 ✅ `report-<YYYY-MM-DD_HHMMSS>.json` (schema 3) — native result: tool/version,
   start/finish, roots, the effective config, stats (incl. files/bytes hashed), per-category
-  summary (duplicates: groups / wasted bytes), all findings (path, rel, root, size, mtime,
-  category, rule, threshold, detail, group), duplicate groups, top files/folders, errors
-  (scan + hashing), skipped paths.
+  summary (duplicates: groups / wasted bytes; overlaps: pairs / shared bytes), all findings
+  (path, rel, root, size, mtime, category, rule, threshold, detail, group), duplicate groups,
+  identical-folder groups, overlap pairs, top files/folders, errors (scan + hashing), skipped.
+- FR-36 ✅ Reports, exports and plans live in **`<first root>/.folder-inspect/reports/`**
+  (owner decision 2026-09-15); the scanner never enters `.folder-inspect`. If that folder
+  cannot be created (read-only share) the report falls back to the current folder with a
+  notice. Default names get a `-2`, `-3` suffix instead of colliding within one second.
 - FR-31 ✅ Console summary after a scan: counts and sizes per category, first 10 findings per
   category, duplicate groups with members and the suggested original, top-10 files and
   folders, read errors, files written. `-quiet` suppresses it. `report <json>` re-prints a
@@ -129,9 +146,13 @@ folder-inspect scan <root...>
 - FR-35 ✅ **Nothing is overwritten silently.** The default report name carries the scan
   timestamp; an explicit `-out` or export path that already exists is refused with a hint to
   add `-force`. All output paths are checked before the scan starts.
-- FR-32 ⏳ Web UI (`folder-inspect ui`): localhost page in the default browser, findings by
-  category, sort/filter/search, duplicate groups, tick boxes to assemble an action plan,
-  export buttons. Embedded into the executable; no external resources.
+- FR-32 ✅ Web UI (`folder-inspect ui <report.json | folder>`): binds 127.0.0.1 on a free
+  port (or `-port`), opens the default browser (`-no-browser` to skip), serves the embedded
+  page (plain HTML/JS/CSS via `embed`, no external resources). Shows summary, every category
+  with sort/filter and tick boxes, duplicate file and folder groups with a radio for the
+  original and ticks for copies, overlap pairs, top lists, errors; exports CSV/XLSX/HTML;
+  RU/EN switch; "show in file manager" for any path inside the roots. The UI changes nothing
+  on disk: ticks become an action plan saved via `POST /api/plan`.
 - FR-33 ✅ Exports: CSV (UTF-8 BOM, `;` for RU / `,` for EN, one row per finding), XLSX
   (sheets: summary, findings with filters, duplicates, top files, top folders, errors),
   self-contained HTML (inline CSS, no scripts, no external resources). Written by
@@ -142,8 +163,11 @@ folder-inspect scan <root...>
 ### Actions
 - FR-40 ⏳ Read-only by default. Any change to the file system happens only through
   `apply` on a plan the user has reviewed.
-- FR-41 ⏳ `plan` produces `plan.json` (from UI selection or from rules such as
-  "all junk", "all archives"); `apply --dry-run` prints what would happen; `apply` executes.
+- FR-41 ⏳ Plan: ✅ the UI saves `plan-<ts>.json` (schema 1) next to the report — roots, the
+  source report, and actions `quarantine` (any finding), `quarantine-duplicate` (copy +
+  original), `quarantine-dir` (folder copy + original folder); validated server-side: every
+  path inside a root, never a root itself, originals never quarantined. ⏳ `plan` from rules
+  ("all junk"), `apply --dry-run`, `apply`.
 - FR-42 ⏳ Quarantine: move a file to `<quarantine>/<YYYY-MM-DD_HHMM>/<relative path>` with a
   manifest; `restore` puts files back. Quarantine folder: `<root>/.folder-inspect/quarantine`
   (overridable in config).
@@ -181,12 +205,12 @@ internal/scan/          walker, file index with per-folder aggregates
 internal/detect/        detectors: size.go, ext.go (archives, distributives), junk.go, empty.go, dup.go (the only one with I/O) (planned: names.go)
 internal/report/        Report model + JSON I/O, console summary, overwrite policy, shared formatting
 internal/export/        csv.go, xlsx.go (excelize), html.go (html/template, self-contained)
+internal/ui/            localhost server (server.go: /api/report, /api/export, /api/plan, /api/reveal) + static/ (index.html, app.js, style.css, embedded)
+internal/action/        plan.go: Plan / Action model, validation, plan-<ts>.json (planned: apply, quarantine, restore, stubs)
 internal/config/        defaults, YAML loading, ByteSize
 internal/glob/          case-insensitive glob matching
 internal/i18n/          RU / EN message catalogs
 internal/fixture/       deterministic dirty-repository generator (tests + `fixture` command)
-planned: internal/ui/   embedded web UI (static HTML/JS) + local HTTP handlers
-planned: internal/action/  plan, apply, quarantine, restore, pointer stubs
 docs/                   ADRs, questionnaire, example config
 ```
 
@@ -203,7 +227,10 @@ docs/                   ADRs, questionnaire, example config
 - ✅ MVP slice 2 (2026-09-15): exact duplicates with suggested original (FR-19, FR-21 data),
   exports CSV/XLSX/HTML (FR-33), `report` command, timestamped report names and overwrite
   protection (FR-35). Verified on two real repositories (57 GB, ~5 900 files).
-- ⏳ Slice 3: web UI (FR-32), plan/apply/restore, quarantine, pointer stubs (FR-40…44).
+- ✅ Slice 3a (2026-09-15): duplicate folders — identical groups and overlapping pairs
+  (FR-23, FR-24); embedded web UI with original pick and plan saving (FR-32, FR-41 plan part);
+  reports under `<root>/.folder-inspect/reports/` (FR-36).
+- ⏳ Slice 3b: `apply --dry-run` / `apply` / `restore`, quarantine, pointer stubs (FR-40, 42–44).
 - ⏳ Then: near-duplicate names (FR-20), OS locale detection, `**` in globs.
 - ❓ Minor: more near-duplicate name patterns from practice; optional `.lnk` next to the stub.
 

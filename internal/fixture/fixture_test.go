@@ -71,15 +71,24 @@ func TestEndToEndScan(t *testing.T) {
 	}
 	findings := detect.Run(res, cfg)
 	dups := detect.Duplicates(res.Files, detect.DupOptions{MinSize: int64(cfg.Duplicates.MinSize)})
+	dirs := detect.DuplicateDirs(res, dups, detect.DirDupOptions{MinOverlap: cfg.FolderDuplicates.MinOverlap, MinFiles: cfg.FolderDuplicates.MinFiles})
 	findings = append(findings, dups.Findings()...)
+	findings = append(findings, dirs.Findings()...)
 	detect.Sort(findings)
-	rep := report.Build(res, findings, dups, cfg, "test")
+	rep := report.Build(res, findings, dups, dirs, cfg, "test")
 
-	if len(dups.Groups) != 1 || dups.Groups[0].Count != 3 || dups.Groups[0].Wasted != 8*1024 {
-		t.Errorf("want one group of 3 contract copies wasting 8 KB, got %+v", dups.Groups)
+	if len(dups.Groups) != 3 {
+		t.Errorf("want 3 file duplicate groups (contract, two attachments), got %+v", dups.Groups)
+	}
+	if len(dirs.Groups) != 1 || dirs.Groups[0].Count != 2 || dirs.Groups[0].Files != 2 || dirs.Groups[0].Wasted != 13*1024 {
+		t.Errorf("want one identical-folder group (Приложения), got %+v", dirs.Groups)
+	}
+	if len(dirs.Overlaps) != 2 {
+		t.Errorf("want 2 overlap pairs (Для отправки with each Приложения), got %+v", dirs.Overlaps)
 	}
 	want := map[detect.Category]int{
-		detect.Oversize: 5, detect.Archive: 1, detect.Distributive: 1, detect.Duplicate: 1,
+		detect.Oversize: 5, detect.Archive: 1, detect.Distributive: 1, detect.Duplicate: 3,
+		detect.DirDuplicate: 1, detect.DirOverlap: 2,
 		detect.Junk: 4, detect.EmptyDir: 2, detect.EmptyFile: 1,
 	}
 	got := map[detect.Category]int{}
@@ -125,8 +134,11 @@ func TestEndToEndScan(t *testing.T) {
 	if back.Schema != report.SchemaVersion || len(back.Findings) != len(findings) || back.Stats.Files != len(Files) {
 		t.Errorf("round trip lost data: %+v", back.Stats)
 	}
-	if len(back.Duplicates) != 1 || back.Duplicates[0].Suggested == "" || back.Stats.Hashed == 0 {
+	if len(back.Duplicates) != 3 || back.Duplicates[0].Suggested == "" || back.Stats.Hashed == 0 {
 		t.Errorf("duplicates lost in round trip: %+v", back.Duplicates)
+	}
+	if len(back.DirDuplicates) != 1 || len(back.DirOverlaps) != 2 {
+		t.Errorf("folder results lost in round trip: %d %d", len(back.DirDuplicates), len(back.DirOverlaps))
 	}
 	if back.Config.SizeRules[0].Threshold != cfg.SizeRules[0].Threshold {
 		t.Error("config thresholds must survive the JSON round trip")
@@ -148,6 +160,9 @@ func TestEndToEndScan(t *testing.T) {
 		}
 		if !strings.Contains(s, "Копия Договор.docx") || !strings.Contains(s, "* ") {
 			t.Errorf("[%s] console lacks the duplicate group with a suggested original:\n%s", lang, s)
+		}
+		if !strings.Contains(s, "Приложения (копия)") || !strings.Contains(s, "<->") {
+			t.Errorf("[%s] console lacks folder duplicates / overlaps:\n%s", lang, s)
 		}
 	}
 	i18n.Set(i18n.RU)

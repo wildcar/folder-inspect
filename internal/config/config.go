@@ -52,12 +52,21 @@ type Config struct {
 	TopN int `yaml:"top_n" json:"top_n"`
 	// Duplicates tunes content-based duplicate detection.
 	Duplicates DupConfig `yaml:"duplicates" json:"duplicates"`
+	// FolderDuplicates tunes identical / overlapping folder detection.
+	FolderDuplicates DirDupConfig `yaml:"folder_duplicates" json:"folder_duplicates"`
 }
 
 // DupConfig tunes duplicate detection.
 type DupConfig struct {
 	Enabled bool     `yaml:"enabled" json:"enabled"`   // hash candidates and report groups
 	MinSize ByteSize `yaml:"min_size" json:"min_size"` // ignore files smaller than this
+}
+
+// DirDupConfig tunes folder comparison (needs Duplicates enabled).
+type DirDupConfig struct {
+	Enabled    bool    `yaml:"enabled" json:"enabled"`
+	MinOverlap float64 `yaml:"min_overlap" json:"min_overlap"` // 0..1, share of the smaller folder
+	MinFiles   int     `yaml:"min_files" json:"min_files"`     // shared files needed for a pair
 }
 
 // Default returns the built-in configuration agreed in AGENTS/SPEC.md.
@@ -79,8 +88,9 @@ func Default() *Config {
 			"Thumbs.db", "desktop.ini", ".DS_Store", "._*", ".Spotlight-V100", ".Trashes",
 			"*.crdownload", "*.part",
 		},
-		TopN:       20,
-		Duplicates: DupConfig{Enabled: true, MinSize: 1 * KB},
+		TopN:             20,
+		Duplicates:       DupConfig{Enabled: true, MinSize: 1 * KB},
+		FolderDuplicates: DirDupConfig{Enabled: true, MinOverlap: 0.5, MinFiles: 2},
 	}
 }
 
@@ -134,6 +144,14 @@ func Discover(explicit string, roots []string) (string, bool) {
 func (c *Config) normalize() error {
 	if c.TopN <= 0 {
 		c.TopN = Default().TopN
+	}
+	if fd := &c.FolderDuplicates; fd.Enabled {
+		if fd.MinOverlap <= 0 || fd.MinOverlap > 1 {
+			return fmt.Errorf("folder_duplicates.min_overlap must be within (0, 1], got %v", fd.MinOverlap)
+		}
+		if fd.MinFiles < 1 {
+			return fmt.Errorf("folder_duplicates.min_files must be at least 1")
+		}
 	}
 	for i := range c.SizeRules {
 		r := &c.SizeRules[i]

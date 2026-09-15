@@ -26,7 +26,7 @@ func runScan(args []string) int {
 	fs.SetOutput(os.Stderr)
 	var (
 		cfgPath = fs.String("config", "", "config file (default: .folder-inspect.yml in the first folder, then in the home folder)")
-		out     = fs.String("out", "", "where to write the JSON report (default: report-<date>_<time>.json in the current folder)")
+		out     = fs.String("out", "", "where to write the JSON report (default: <first folder>/.folder-inspect/reports/report-<date>_<time>.json)")
 		exports = fs.String("export", "", "also write these formats next to the report: csv, xlsx, html (comma-separated)")
 		force   = fs.Bool("force", false, "overwrite existing report/export files")
 		lang    = fs.String("lang", "", "console language: ru or en (default: from the OS locale)")
@@ -56,7 +56,7 @@ func runScan(args []string) int {
 	// refused write.
 	outPath := *out
 	if outPath == "" {
-		outPath = report.DefaultName(time.Now())
+		outPath = defaultReportPath(roots[0])
 	}
 	outPath = filepath.Clean(outPath)
 	if err := report.CheckOverwrite(outPath, *force); err != nil {
@@ -100,13 +100,20 @@ func runScan(args []string) int {
 	}
 	findings := detect.Run(res, cfg)
 	var dups detect.DupResult
+	var dirs detect.DirDupResult
 	if cfg.Duplicates.Enabled {
 		dups = detect.Duplicates(res.Files, detect.DupOptions{MinSize: int64(cfg.Duplicates.MinSize)})
 		findings = append(findings, dups.Findings()...)
+		if cfg.FolderDuplicates.Enabled {
+			dirs = detect.DuplicateDirs(res, dups, detect.DirDupOptions{
+				MinOverlap: cfg.FolderDuplicates.MinOverlap, MinFiles: cfg.FolderDuplicates.MinFiles,
+			})
+			findings = append(findings, dirs.Findings()...)
+		}
 		detect.Sort(findings)
 		res.Finished = time.Now() // the scan includes hashing
 	}
-	rep := report.Build(res, findings, dups, cfg, version)
+	rep := report.Build(res, findings, dups, dirs, cfg, version)
 
 	if err := rep.WriteJSON(outPath); err != nil {
 		fmt.Fprintln(os.Stderr, "report:", err)
@@ -122,9 +129,22 @@ func runScan(args []string) int {
 	}
 	if !*quiet {
 		rep.PrintConsole(os.Stdout, report.ConsoleOptions{ReportPath: outPath, Exports: written})
+		fmt.Println(i18n.Tf("scan.ui_hint", outPath))
 	}
 	if rep.Stats.Errors > 0 {
 		return exitError
 	}
 	return exitOK
+}
+
+// defaultReportPath is <root>/.folder-inspect/reports/report-<ts>.json;
+// when that folder cannot be created (read-only share) the report goes to
+// the current folder instead, with a notice.
+func defaultReportPath(root string) string {
+	dir := report.DefaultDir(root)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		fmt.Fprintln(os.Stderr, i18n.Tf("scan.fallback_dir", dir, err))
+		return report.UniquePath(report.DefaultName(time.Now()))
+	}
+	return report.UniquePath(filepath.Join(dir, report.DefaultName(time.Now())))
 }

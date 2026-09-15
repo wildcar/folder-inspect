@@ -70,6 +70,15 @@ var Files = []File{
 	{Rel: "Проект B/Старое/Договор - копия (2).docx", Size: 4 * kb, Seed: "contract"},
 	// near-duplicate by name, different content
 	{Rel: "Проект A/Отчёты/Отчёт за март (1).docx", Size: 5 * kb, Seed: "report-march-v2"},
+	// identical folders: Приложения ≡ Старое/Приложения (копия)
+	{Rel: "Проект A/Приложения/Приложение 1.pdf", Size: 6 * kb, Seed: "app1"},
+	{Rel: "Проект A/Приложения/Приложение 2.pdf", Size: 7 * kb, Seed: "app2"},
+	{Rel: "Проект B/Старое/Приложения (копия)/Приложение 1.pdf", Size: 6 * kb, Seed: "app1"},
+	{Rel: "Проект B/Старое/Приложения (копия)/Приложение 2.pdf", Size: 7 * kb, Seed: "app2"},
+	// partial overlap: Для отправки holds both attachments plus a letter
+	{Rel: "Проект B/Для отправки/Приложение 1.pdf", Size: 6 * kb, Seed: "app1"},
+	{Rel: "Проект B/Для отправки/Приложение 2.pdf", Size: 7 * kb, Seed: "app2"},
+	{Rel: "Проект B/Для отправки/Письмо.docx", Size: 3 * kb, Seed: "letter"},
 }
 
 // Generate writes the fixture into dir, which must be empty or absent.

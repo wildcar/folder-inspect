@@ -63,3 +63,12 @@ top_n: 20
 duplicates:
   enabled: true
   min_size: 1KB      # ignore tiny files
+
+# Folder comparison, derived from the file duplicates above (no extra reads).
+# Identical folders (same files, same contents) are reported as groups;
+# folders that share part of their content are reported as pairs when the
+# shared bytes are at least min_overlap of the smaller folder.
+folder_duplicates:
+  enabled: true
+  min_overlap: 0.5   # 50 % of the smaller folder
+  min_files: 2       # at least this many shared files

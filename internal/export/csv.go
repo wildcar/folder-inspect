@@ -5,6 +5,7 @@ import (
 	"io"
 	"strconv"
 
+	"github.com/wildcar/folder-inspect/internal/detect"
 	"github.com/wildcar/folder-inspect/internal/i18n"
 	"github.com/wildcar/folder-inspect/internal/report"
 )
@@ -45,6 +46,18 @@ func CSV(r *report.Report, w io.Writer) error {
 			report.CategoryName(f.Category), f.Rule, f.Group, f.Path,
 			strconv.FormatInt(f.Size, 10), report.HumanSize(f.Size), report.FormatTime(f.ModTime),
 			threshold, detail, f.Root,
+		}
+		if err := cw.Write(row); err != nil {
+			return err
+		}
+	}
+	// Folder pairs are not findings; add them as rows with the second
+	// folder and the overlap figures in the note column.
+	for _, o := range r.DirOverlaps {
+		row := []string{
+			report.CategoryName(detect.DirOverlap), "", "", o.A.Path,
+			strconv.FormatInt(o.SharedBytes, 10), report.HumanSize(o.SharedBytes), "",
+			"", o.B.Path + " | " + report.OverlapLine(o), o.A.Root,
 		}
 		if err := cw.Write(row); err != nil {
 			return err

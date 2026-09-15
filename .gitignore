@@ -20,5 +20,7 @@ Thumbs.db
 # Go build output and local scan artefacts
 dist/
 *.exe
+/report-*.*
 /report*.json
+/plan-*.json
 /.folder-inspect/

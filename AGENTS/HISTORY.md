@@ -4,6 +4,12 @@ Newest first. Each entry ≤5 lines using the format defined in `AGENTS.md`.
 
 ---
 
+## 2026-09-15 · Slice 3a: duplicate folders, web UI, reports under the root
+- What: `detect.DuplicateDirs` (identical folders by signature of file hashes; overlapping pairs with ratio/min-files thresholds and nested-pair suppression), report schema 3, console/CSV/XLSX/HTML sections; `internal/ui` localhost server with embedded page (categories, groups with original pick, plan saving, exports, RU/EN, reveal), `internal/action` plan model; `ui` command; default report path `<root>/.folder-inspect/reports/` with fallback and `-2` suffixing.
+- Why: owner asked for slice 3 (web UI), reports under the root, and duplicate folders (full and partial).
+- Files: internal/detect/dirdup.go, internal/ui/*, internal/action/plan.go, cmd/folder-inspect/cmd_ui.go, internal/report/*, internal/export/*, internal/i18n/i18n.go, internal/config/config.go, internal/fixture/fixture.go, AGENTS/SPEC.md, AGENTS.md, README.md
+- Next: slice 3b — apply / quarantine / restore / pointer stubs.
+
 ## 2026-09-15 · MVP slice 2: duplicates, exports, no silent overwrite
 - What: `detect.Duplicates` (size → 64 KB head hash → full SHA-256, parallel; groups with suggested original), report schema 2 with duplicate groups and hashing stats, `internal/export` (CSV with BOM and locale separator, XLSX via excelize, self-contained HTML), `report` command, `scan -export`, timestamped default report name + `-force` overwrite guard, `-no-dups`, `duplicates:` config section.
 - Why: owner asked for slice 2 and flagged that a second run silently overwrote `report.json`.

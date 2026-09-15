@@ -20,13 +20,18 @@ const (
 	Archive      Category = "archive"
 	Distributive Category = "distributive"
 	Duplicate    Category = "duplicate"
+	DirDuplicate Category = "dir-duplicate" // folders with identical content
+	DirOverlap   Category = "dir-overlap"   // folder pairs sharing part of their content
 	Junk         Category = "junk"
 	EmptyDir     Category = "empty-dir"
 	EmptyFile    Category = "empty-file"
 )
 
 // Categories in display order.
-var Categories = []Category{Oversize, Archive, Distributive, Duplicate, Junk, EmptyDir, EmptyFile}
+var Categories = []Category{Oversize, Archive, Distributive, Duplicate, DirDuplicate, DirOverlap, Junk, EmptyDir, EmptyFile}
+
+// GroupCategories are rendered as groups/pairs, not as flat finding lists.
+var GroupCategories = map[Category]bool{Duplicate: true, DirDuplicate: true, DirOverlap: true}
 
 // Finding is one flagged file or folder.
 type Finding struct {

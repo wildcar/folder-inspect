@@ -7,36 +7,33 @@ the live picture here; push detail into `AGENTS/SPEC.md` (the contract) and `AGE
 ## Goal
 
 Build folder-inspect: a Go tool that finds oversized files (graded by kind), archives and
-distributives, junk, duplicates and near-duplicates in project document repositories, shows
-them in a local web UI with exports, and cleans up via quarantine with pointer stubs.
+distributives, junk, duplicate files and folders in project document repositories, shows them
+in a local web UI with exports, and cleans up via quarantine with pointer stubs.
 Contract: `AGENTS/SPEC.md` v0.2.
 
 ## Now
 
-- MVP slice 2 shipped 2026-09-15: exact duplicates (size → head hash → full hash, parallel),
-  exports CSV/XLSX/HTML, `report` command, timestamped report names, overwrite protection.
-- Verified on the owner's two real repositories together (57 GB, 5 862 files): 693 candidate
-  files / 582 MB hashed, 156 duplicate groups wasting 294 MB, no read errors; XLSX and HTML
-  exports open. Build/vet/gofmt/tests green.
-- Not yet tried on a network share (UNC path).
+- Slice 3a shipped 2026-09-15: identical-folder groups and overlapping-folder pairs; embedded
+  web UI (`ui` command) with category views, duplicate groups with original pick, plan saving,
+  exports, RU/EN; reports/exports/plans under `<root>/.folder-inspect/reports/`.
+- Verified in the browser on the demo fixture: summary, duplicate groups, "select copies" →
+  plan of 2 items saved as `plan-<ts>.json`. Build/vet/gofmt/tests green.
+- Not yet run on the owner's real repositories since folder duplicates were added.
 
 ## Next
 
-1. Slice 3a — embedded web UI (`ui` command): serve `report.json` on localhost, open the browser;
-   findings by category with sort/filter/search, duplicate groups with a radio for the original
-   (pre-selected: suggested), checkboxes → action plan; export buttons.
-2. Slice 3b — `plan` / `apply --dry-run` / `apply` / `restore`: quarantine under
-   `<root>/.folder-inspect/quarantine/<ts>/`, manifest, pointer stubs `<name>.duplicate.txt`.
+1. Slice 3b — `apply`: read `plan-<ts>.json`, `--dry-run` listing, then move each path to
+   `<root>/.folder-inspect/quarantine/<ts>/<relative path>` with a manifest; pointer stub
+   `<name>.duplicate.txt` for `quarantine-duplicate` / `quarantine-dir`; `restore <manifest>`.
+2. UI: button "apply" is out of scope for now (apply stays a CLI step the user runs after review).
 3. Near-duplicate names (FR-20), Windows OS-locale detection, `**` in globs.
-4. GitHub Actions: build + test on push, release binaries for windows/amd64 and linux/amd64 on tag.
+4. GitHub Actions: build + test on push, release binaries on tag.
 
 ## Open questions
 
-- Near-duplicate name patterns — extend from practice as they come up (FR-20).
-- Optional Windows `.lnk` next to the pointer stub — only if colleagues ask (FR-43).
-- Console shows paths relative to the root; with several roots this can be ambiguous — the UI
-  and exports show absolute paths. Keep or switch the console to absolute when roots > 1?
-- Should `scan` without `-out` write into the current folder (now) or into `<root>/.folder-inspect/reports/`?
+- Should `ui` offer a "rescan" button (re-run the scan from the browser)? Currently CLI only.
+- Overlap pairs: is 50 % / 2 files a good default on real data? Check on the owner's repositories.
+- Console paths relative to root vs. absolute with several roots (UI and exports are absolute).
 
 ## Deferred
 

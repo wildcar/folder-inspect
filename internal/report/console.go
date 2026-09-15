@@ -68,11 +68,16 @@ func (r *Report) PrintConsole(w io.Writer, opt ConsoleOptions) {
 		fmt.Fprintln(w)
 
 		for _, c := range detect.Categories {
-			if c == detect.Duplicate {
+			switch c {
+			case detect.Duplicate:
 				r.printDuplicates(w, opt.PerCategory)
-				continue
+			case detect.DirDuplicate:
+				r.printDirDuplicates(w, opt.PerCategory)
+			case detect.DirOverlap:
+				r.printOverlaps(w, opt.PerCategory)
+			default:
+				r.printCategory(w, c, opt.PerCategory)
 			}
-			r.printCategory(w, c, opt.PerCategory)
 		}
 	}
 
@@ -146,6 +151,53 @@ func (r *Report) printDuplicates(w io.Writer, limit int) {
 			}
 			fmt.Fprintf(w, "            %s %s  (%s)\n", mark, displayPath(f.Rel, f.Path), FormatTime(f.ModTime))
 		}
+	}
+	fmt.Fprintln(w)
+}
+
+func (r *Report) printDirDuplicates(w io.Writer, limit int) {
+	if len(r.DirDuplicates) == 0 {
+		return
+	}
+	var wasted int64
+	for _, g := range r.DirDuplicates {
+		wasted += g.Wasted
+	}
+	fmt.Fprintln(w, i18n.Tf("dup.header", CategoryName(detect.DirDuplicate), len(r.DirDuplicates), HumanSize(wasted)))
+	fmt.Fprintln(w, "  "+i18n.T("dup.legend"))
+	for i, g := range r.DirDuplicates {
+		if i >= limit {
+			fmt.Fprintln(w, "  "+i18n.Tf("scan.more", len(r.DirDuplicates)-i))
+			break
+		}
+		fmt.Fprintf(w, "  %10s  %s, %s  [%s]\n", HumanSize(g.Size), i18n.Tf("dirdup.folders", g.Count), i18n.Tf("dirdup.files", g.Files), g.ID)
+		for _, d := range g.Dirs {
+			mark := " "
+			if d.Path == g.Suggested {
+				mark = "*"
+			}
+			fmt.Fprintf(w, "            %s %s  (%s)\n", mark, displayPath(d.Rel, d.Path), FormatTime(d.ModTime))
+		}
+	}
+	fmt.Fprintln(w)
+}
+
+func (r *Report) printOverlaps(w io.Writer, limit int) {
+	if len(r.DirOverlaps) == 0 {
+		return
+	}
+	var shared int64
+	for _, o := range r.DirOverlaps {
+		shared += o.SharedBytes
+	}
+	fmt.Fprintln(w, i18n.Tf("overlap.header", CategoryName(detect.DirOverlap), len(r.DirOverlaps), HumanSize(shared)))
+	for i, o := range r.DirOverlaps {
+		if i >= limit {
+			fmt.Fprintln(w, "  "+i18n.Tf("scan.more", len(r.DirOverlaps)-i))
+			break
+		}
+		fmt.Fprintf(w, "  %10s  %s  <->  %s\n", HumanSize(o.SharedBytes), displayPath(o.A.Rel, o.A.Path), displayPath(o.B.Rel, o.B.Path))
+		fmt.Fprintf(w, "              %s (%s / %s)\n", OverlapLine(o), Percent(o.RatioA), Percent(o.RatioB))
 	}
 	fmt.Fprintln(w)
 }

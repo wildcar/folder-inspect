@@ -6,6 +6,7 @@ package report
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
@@ -20,7 +21,8 @@ import (
 
 // SchemaVersion changes when the JSON layout changes incompatibly.
 // 2: added duplicates, findings[].group, stats.hashed*.
-const SchemaVersion = 2
+// 3: added dir_duplicates, dir_overlaps.
+const SchemaVersion = 3
 
 // Item is a path with a size, used for the top lists.
 type Item struct {
@@ -32,7 +34,8 @@ type Item struct {
 }
 
 // CategorySummary is the count and total size of one category. For
-// duplicates Count is the number of groups and Size the wasted bytes.
+// duplicates (files and folders) Count is the number of groups and Size the
+// wasted bytes; for folder overlaps Count is pairs and Size the shared bytes.
 type CategorySummary struct {
 	Category detect.Category `json:"category"`
 	Count    int             `json:"count"`
@@ -52,44 +55,55 @@ type Stats struct {
 
 // Report is the native scan result.
 type Report struct {
-	Schema     int               `json:"schema"`
-	Tool       string            `json:"tool"`
-	Version    string            `json:"version"`
-	Started    time.Time         `json:"started"`
-	Finished   time.Time         `json:"finished"`
-	Roots      []string          `json:"roots"`
-	Config     *config.Config    `json:"config"`
-	Stats      Stats             `json:"stats"`
-	Summary    []CategorySummary `json:"summary"`
-	Findings   []detect.Finding  `json:"findings"`
-	Duplicates []detect.DupGroup `json:"duplicates"`
-	TopFiles   []Item            `json:"top_files"`
-	TopDirs    []Item            `json:"top_dirs"`
-	Errors     []scan.Error      `json:"errors"`
-	Skipped    []string          `json:"skipped"`
+	Schema        int                  `json:"schema"`
+	Tool          string               `json:"tool"`
+	Version       string               `json:"version"`
+	Started       time.Time            `json:"started"`
+	Finished      time.Time            `json:"finished"`
+	Roots         []string             `json:"roots"`
+	Config        *config.Config       `json:"config"`
+	Stats         Stats                `json:"stats"`
+	Summary       []CategorySummary    `json:"summary"`
+	Findings      []detect.Finding     `json:"findings"`
+	Duplicates    []detect.DupGroup    `json:"duplicates"`
+	DirDuplicates []detect.DirGroup    `json:"dir_duplicates"`
+	DirOverlaps   []detect.OverlapPair `json:"dir_overlaps"`
+	TopFiles      []Item               `json:"top_files"`
+	TopDirs       []Item               `json:"top_dirs"`
+	Errors        []scan.Error         `json:"errors"`
+	Skipped       []string             `json:"skipped"`
 }
 
 // Build assembles the report from a scan, its findings (which should
-// already include dups.Findings()) and the duplicate detection result.
-func Build(res *scan.Result, findings []detect.Finding, dups detect.DupResult, cfg *config.Config, version string) *Report {
+// already include dups.Findings() and dirs.Findings()) and the duplicate
+// detection results.
+func Build(res *scan.Result, findings []detect.Finding, dups detect.DupResult, dirs detect.DirDupResult, cfg *config.Config, version string) *Report {
 	r := &Report{
-		Schema:     SchemaVersion,
-		Tool:       "folder-inspect",
-		Version:    version,
-		Started:    res.Started,
-		Finished:   res.Finished,
-		Roots:      res.Roots,
-		Config:     cfg,
-		Findings:   findings,
-		Duplicates: dups.Groups,
-		Errors:     append(append([]scan.Error{}, res.Errors...), dups.Errors...),
-		Skipped:    res.Skipped,
+		Schema:        SchemaVersion,
+		Tool:          "folder-inspect",
+		Version:       version,
+		Started:       res.Started,
+		Finished:      res.Finished,
+		Roots:         res.Roots,
+		Config:        cfg,
+		Findings:      findings,
+		Duplicates:    dups.Groups,
+		DirDuplicates: dirs.Groups,
+		DirOverlaps:   dirs.Overlaps,
+		Errors:        append(append([]scan.Error{}, res.Errors...), dups.Errors...),
+		Skipped:       res.Skipped,
 	}
 	if r.Findings == nil {
 		r.Findings = []detect.Finding{}
 	}
 	if r.Duplicates == nil {
 		r.Duplicates = []detect.DupGroup{}
+	}
+	if r.DirDuplicates == nil {
+		r.DirDuplicates = []detect.DirGroup{}
+	}
+	if r.DirOverlaps == nil {
+		r.DirOverlaps = []detect.OverlapPair{}
 	}
 	if r.Skipped == nil {
 		r.Skipped = []string{}
@@ -102,7 +116,7 @@ func Build(res *scan.Result, findings []detect.Finding, dups detect.DupResult, c
 
 	byCat := map[detect.Category]*CategorySummary{}
 	for _, f := range findings {
-		if f.Category == detect.Duplicate {
+		if detect.GroupCategories[f.Category] {
 			continue
 		}
 		s := byCat[f.Category]
@@ -119,6 +133,20 @@ func Build(res *scan.Result, findings []detect.Finding, dups detect.DupResult, c
 			s.Size += g.Wasted
 		}
 		byCat[detect.Duplicate] = s
+	}
+	if len(dirs.Groups) > 0 {
+		s := &CategorySummary{Category: detect.DirDuplicate, Count: len(dirs.Groups)}
+		for _, g := range dirs.Groups {
+			s.Size += g.Wasted
+		}
+		byCat[detect.DirDuplicate] = s
+	}
+	if len(dirs.Overlaps) > 0 {
+		s := &CategorySummary{Category: detect.DirOverlap, Count: len(dirs.Overlaps)}
+		for _, o := range dirs.Overlaps {
+			s.Size += o.SharedBytes
+		}
+		byCat[detect.DirOverlap] = s
 	}
 	r.Summary = []CategorySummary{}
 	for _, c := range detect.Categories {
@@ -199,6 +227,56 @@ func DefaultName(t time.Time) string {
 	return "report-" + t.Format("2006-01-02_150405") + ".json"
 }
 
+// UniquePath returns path if nothing exists there, else path with a "-2",
+// "-3"… suffix before the extension. Used for default names, so two scans
+// within one second do not collide; explicit -out paths still need -force.
+func UniquePath(path string) string {
+	if _, err := os.Stat(path); errors.Is(err, os.ErrNotExist) {
+		return path
+	}
+	ext := filepath.Ext(path)
+	base := strings.TrimSuffix(path, ext)
+	for i := 2; ; i++ {
+		p := fmt.Sprintf("%s-%d%s", base, i, ext)
+		if _, err := os.Stat(p); errors.Is(err, os.ErrNotExist) {
+			return p
+		}
+	}
+}
+
+// DefaultDir is where reports (and plans, exports) of a root live:
+// <root>/.folder-inspect/reports. The scanner never enters that folder.
+func DefaultDir(root string) string {
+	abs, err := filepath.Abs(root)
+	if err != nil {
+		abs = root
+	}
+	return filepath.Join(abs, scan.WorkDir, "reports")
+}
+
+// NewestReport returns the most recently modified report-*.json in dir.
+func NewestReport(dir string) (string, error) {
+	matches, err := filepath.Glob(filepath.Join(dir, "report-*.json"))
+	if err != nil {
+		return "", err
+	}
+	var best string
+	var bestTime time.Time
+	for _, m := range matches {
+		st, err := os.Stat(m)
+		if err != nil || st.IsDir() {
+			continue
+		}
+		if best == "" || st.ModTime().After(bestTime) {
+			best, bestTime = m, st.ModTime()
+		}
+	}
+	if best == "" {
+		return "", errors.New(i18n.Tf("err.no_reports", dir))
+	}
+	return best, nil
+}
+
 // CheckOverwrite fails when path exists and force is false. Every file the
 // tool writes on the user's behalf goes through this.
 func CheckOverwrite(path string, force bool) error {
@@ -243,3 +321,11 @@ func Qualifier(f detect.Finding) string {
 
 // CategoryName is the translated display name of a category.
 func CategoryName(c detect.Category) string { return i18n.T("cat." + string(c)) }
+
+// Percent renders a 0..1 ratio as a whole percentage.
+func Percent(ratio float64) string { return fmt.Sprintf("%d%%", int(ratio*100+0.5)) }
+
+// OverlapLine describes a folder pair: shared files, bytes and share.
+func OverlapLine(o detect.OverlapPair) string {
+	return i18n.Tf("overlap.shared", o.SharedFiles, HumanSize(o.SharedBytes), int(o.Ratio*100+0.5))
+}

@@ -85,6 +85,22 @@ top_n: 5
 	}
 }
 
+func TestLoadFolderDuplicatesSection(t *testing.T) {
+	p := filepath.Join(t.TempDir(), FileName)
+	os.WriteFile(p, []byte("folder_duplicates:\n  min_overlap: 0.8\n  min_files: 5\n"), 0o644)
+	cfg, err := Load(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !cfg.FolderDuplicates.Enabled || cfg.FolderDuplicates.MinOverlap != 0.8 || cfg.FolderDuplicates.MinFiles != 5 {
+		t.Errorf("folder_duplicates not applied: %+v", cfg.FolderDuplicates)
+	}
+	os.WriteFile(p, []byte("folder_duplicates:\n  min_overlap: 1.5\n"), 0o644)
+	if _, err := Load(p); err == nil {
+		t.Error("min_overlap > 1 must fail")
+	}
+}
+
 func TestLoadDuplicatesSection(t *testing.T) {
 	p := filepath.Join(t.TempDir(), FileName)
 	os.WriteFile(p, []byte("duplicates:\n  enabled: false\n  min_size: 10MB\n"), 0o644)

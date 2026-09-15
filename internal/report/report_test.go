@@ -61,16 +61,30 @@ func TestBuildSummarisesDuplicatesAsGroups(t *testing.T) {
 		Errors: []scan.Error{{Path: "x", Err: "denied"}},
 		Hashed: 5, HashedBytes: 500,
 	}
+	dirs := detect.DirDupResult{
+		Groups:   []detect.DirGroup{{ID: "d1", Size: 1000, Count: 2, Wasted: 1000, Dirs: make([]detect.DupDir, 2)}},
+		Overlaps: []detect.OverlapPair{{SharedBytes: 300, SharedFiles: 2, Ratio: 0.6}, {SharedBytes: 200, SharedFiles: 2, Ratio: 0.5}},
+	}
 	findings := append([]detect.Finding{{Category: detect.Junk, Size: 7}}, dups.Findings()...)
-	r := Build(res, findings, dups, config.Default(), "t")
-	if len(r.Summary) != 2 {
+	findings = append(findings, dirs.Findings()...)
+	r := Build(res, findings, dups, dirs, config.Default(), "t")
+	if len(r.Summary) != 4 {
 		t.Fatalf("summary: %+v", r.Summary)
 	}
 	if r.Summary[0].Category != detect.Duplicate || r.Summary[0].Count != 2 || r.Summary[0].Size != 210 {
 		t.Errorf("duplicate summary must be groups/wasted: %+v", r.Summary[0])
 	}
-	if r.Summary[1].Category != detect.Junk || r.Summary[1].Count != 1 {
-		t.Errorf("junk summary: %+v", r.Summary[1])
+	if r.Summary[1].Category != detect.DirDuplicate || r.Summary[1].Count != 1 || r.Summary[1].Size != 1000 {
+		t.Errorf("folder duplicate summary must be groups/wasted: %+v", r.Summary[1])
+	}
+	if r.Summary[2].Category != detect.DirOverlap || r.Summary[2].Count != 2 || r.Summary[2].Size != 500 {
+		t.Errorf("overlap summary must be pairs/shared: %+v", r.Summary[2])
+	}
+	if r.Summary[3].Category != detect.Junk || r.Summary[3].Count != 1 {
+		t.Errorf("junk summary: %+v", r.Summary[3])
+	}
+	if Percent(0.896) != "90%" || Percent(1) != "100%" {
+		t.Error("Percent rounding")
 	}
 	if r.Stats.Errors != 1 || r.Stats.Hashed != 5 || r.Stats.HashedBytes != 500 || len(r.Duplicates) != 2 {
 		t.Errorf("stats/dups not carried: %+v", r.Stats)
@@ -99,5 +113,36 @@ func TestCheckOverwriteAndNames(t *testing.T) {
 	}
 	if _, err := ReadJSON(p); err == nil {
 		t.Error("a foreign JSON must be rejected")
+	}
+}
+
+func TestDefaultDirAndNewest(t *testing.T) {
+	root := t.TempDir()
+	dir := DefaultDir(root)
+	if !strings.HasSuffix(dir, filepath.Join(".folder-inspect", "reports")) || !strings.HasPrefix(dir, root) {
+		t.Errorf("DefaultDir: %q", dir)
+	}
+	if _, err := NewestReport(dir); err == nil {
+		t.Error("no reports yet must be an error")
+	}
+	os.MkdirAll(dir, 0o755)
+	old := filepath.Join(dir, "report-2026-01-01_000000.json")
+	newer := filepath.Join(dir, "report-2026-02-01_000000.json")
+	os.WriteFile(old, []byte("{}"), 0o644)
+	os.WriteFile(newer, []byte("{}"), 0o644)
+	os.Chtimes(old, time.Now().Add(-time.Hour), time.Now().Add(-time.Hour))
+	if got, err := NewestReport(dir); err != nil || got != newer {
+		t.Errorf("NewestReport = %q, %v", got, err)
+	}
+	if got := UniquePath(newer); got != strings.TrimSuffix(newer, ".json")+"-2.json" {
+		t.Errorf("UniquePath on an existing file: %q", got)
+	}
+	os.WriteFile(strings.TrimSuffix(newer, ".json")+"-2.json", []byte("{}"), 0o644)
+	if got := UniquePath(newer); !strings.HasSuffix(got, "-3.json") {
+		t.Errorf("UniquePath must skip taken suffixes: %q", got)
+	}
+	fresh := filepath.Join(dir, "report-2026-03-01_000000.json")
+	if got := UniquePath(fresh); got != fresh {
+		t.Errorf("UniquePath on a free name must return it unchanged: %q", got)
 	}
 }

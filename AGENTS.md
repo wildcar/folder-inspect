@@ -132,7 +132,7 @@ Stack: Go 1.27 (module `github.com/wildcar/folder-inspect`), standard toolchain,
 
 ```bash
 # install      — go mod download
-# dev / run    — go run ./cmd/folder-inspect scan <root>          (also: report <json>, fixture <empty-dir>, version)
+# dev / run    — go run ./cmd/folder-inspect scan <root>          (also: ui <root|json>, report <json>, fixture <empty-dir>, version)
 # build        — go build -o dist/folder-inspect.exe ./cmd/folder-inspect
 # test         — go test ./...
 # lint         — go vet ./... && gofmt -l .   (gofmt -l must print nothing)
@@ -141,14 +141,16 @@ Stack: Go 1.27 (module `github.com/wildcar/folder-inspect`), standard toolchain,
 
 ## Architecture
 
-Pipeline: `scan.Walk` → `detect.Run` (+ `detect.Duplicates`, the only detector with I/O) → `report.Build` → `report-<ts>.json` → console / `export` (csv, xlsx, html) (later: web UI, plan/apply).
+Pipeline: `scan.Walk` → `detect.Run` + `detect.Duplicates` (the only detector with I/O) + `detect.DuplicateDirs` → `report.Build` → `<root>/.folder-inspect/reports/report-<ts>.json` → console / `export` (csv, xlsx, html) / `ui` (browser) → `plan-<ts>.json` (later: apply).
 
 ```
-cmd/folder-inspect/   CLI entry point; one file per command (cmd_scan.go, cmd_report.go, cmd_fixture.go); planned: ui, plan, apply, restore
-internal/scan/        walker + file index with per-folder aggregates; never follows links; skips system dirs
-internal/detect/      detectors over the index: size.go (graded rules), ext.go (archives, distributives), junk.go, empty.go, dup.go (size → head hash → full hash, parallel); planned: names.go
-internal/report/      Report model (schema v2), console summary, overwrite policy (DefaultName, CheckOverwrite), shared formatting (HumanSize, Qualifier)
+cmd/folder-inspect/   CLI entry point; one file per command (cmd_scan.go, cmd_report.go, cmd_ui.go, cmd_fixture.go); planned: apply, restore
+internal/scan/        walker + file index with per-folder aggregates; never follows links; skips system dirs and .folder-inspect
+internal/detect/      detectors over the index: size.go (graded rules), ext.go (archives, distributives), junk.go, empty.go, dup.go (size → head hash → full hash, parallel), dirdup.go (identical folders + overlap pairs, derived from dup groups); planned: names.go
+internal/report/      Report model (schema v3), console summary, output policy (DefaultDir, DefaultName, UniquePath, CheckOverwrite), shared formatting (HumanSize, Qualifier)
 internal/export/      csv.go, xlsx.go (excelize), html.go (html/template, self-contained page)
+internal/ui/          localhost server + embedded static page (plain JS): /api/report, /api/export, /api/plan, /api/reveal
+internal/action/      plan.go — Plan/Action model + validation + plan-<ts>.json; planned: apply, quarantine, restore, pointer stubs
 internal/config/      defaults + YAML (.folder-inspect.yml), ByteSize with binary units
 internal/glob/        case-insensitive glob matching shared by scan and detect
 internal/i18n/        RU (default) / EN message catalogs; a test enforces key parity
@@ -164,5 +166,6 @@ planned: internal/ui/ (embedded web UI), internal/action/ (plan, apply, quaranti
 - Detectors are pure functions over the file index; no I/O besides hashing in the duplicate detector.
 - All name/pattern matching is case-insensitive (`internal/glob`) — users are on case-insensitive file systems.
 - Findings carry machine values (`Rule`, `Threshold`, `Detail`); translation happens in the presentation layer via `i18n` keys, never inside detectors.
-- Every user-visible string goes through `i18n.T`; add the key to both RU and EN maps (the i18n test fails otherwise).
+- Every user-visible string goes through `i18n.T`; add the key to both RU and EN maps (the i18n test fails otherwise). The web UI gets the whole catalog from `/api/report` and uses the same keys (`ui.*` for UI-only labels).
+- The UI server binds 127.0.0.1 only and validates every path it acts on (plan, reveal) against the report roots.
 - Match the conventions of surrounding code: comment density, naming, idiom.
